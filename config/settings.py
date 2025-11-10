@@ -17,14 +17,14 @@ MONGO_USER     = os.getenv("MONGO_USER", "")
 MONGO_PASS     = os.getenv("MONGO_PASS", "")
 MONGO_AUTHSRC  = os.getenv("MONGO_AUTHSRC", MONGO_DB)
 
-# if MONGO_USER and MONGO_PASS:
-#     MONGO_URI = (f"mongodb://{MONGO_USER}:{MONGO_PASS}"
-#                  f"@{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}"
-#                  f"?authSource={MONGO_AUTHSRC}")
-# else:
-#     MONGO_URI = f"mongodb://{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}"
+if MONGO_USER and MONGO_PASS:
+    MONGO_URI = (f"mongodb://{MONGO_USER}:{MONGO_PASS}"
+        f"@{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}"
+        f"?authSource={MONGO_AUTHSRC}")
+else:
+    MONGO_URI = f"mongodb://{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}"
 
-MONGO_URI = "mongodb://localhost:27017"
+# MONGO_URI = "mongodb://localhost:27017"
 
 # Load the GitHub token from the environment
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")

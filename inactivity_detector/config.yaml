@@ -1,0 +1,38 @@
+inactivity_detector:
+  heartbeat:
+    collection: system_heartbeats
+    timestamp_field: emitted_at
+    status_field: status
+    ok_value: alive
+    interval_seconds: 60
+    max_missed: 2
+
+  log_sources:
+    - name: github_webhooks
+      project_id: default_project
+      source_type: file
+      root_dir: logs
+      glob: "github/*.log"
+      timestamp_field: timestamp
+      inactivity_threshold_minutes: 10
+      tail_lines: 400
+      timezone: UTC
+
+    - name: taiga_events
+      project_id: default_project
+      source_type: mongo
+      collection: default_project_taiga_events
+      timestamp_field: created_at
+      inactivity_threshold_minutes: 15
+      filters:
+        project_id: default_project
+
+  outputs:
+    base_dir: artifacts/inactivity_detector
+    events_dir: artifacts/inactivity_detector/events
+    reports_dir: artifacts/inactivity_detector/runs
+    enabled: true
+
+  persistence:
+    downtime_collection: inactivity_intervals
+    user_inactivity_collection: user_inactivity_intervals
