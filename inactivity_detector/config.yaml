@@ -5,6 +5,7 @@ inactivity_detector:
     status_field: status
     ok_value: alive
     interval_seconds: 60
+    startup_delay_seconds: 60
     max_missed: 2
 
   log_sources:

@@ -29,6 +29,7 @@ class HeartbeatSettings:
     status_field: str = "status"
     ok_value: str = "alive"
     interval_seconds: int = 60
+    startup_delay_seconds: int = 0
 
 
 class HeartbeatEmitter:
@@ -42,9 +43,11 @@ class HeartbeatEmitter:
         *,
         config_path: Path | str = Path("inactivity_detector/config.yaml"),
         interval_override: Optional[int] = None,
+        startup_delay_override: Optional[int] = None,
     ) -> None:
         self.config_path = Path(config_path)
         self.requested_interval = interval_override
+        self.requested_startup_delay = startup_delay_override
         self._settings: Optional[HeartbeatSettings] = None
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -95,6 +98,7 @@ class HeartbeatEmitter:
                 status_field=hb.get("status_field", HeartbeatSettings.status_field),
                 ok_value=hb.get("ok_value", HeartbeatSettings.ok_value),
                 interval_seconds=self._resolve_interval(hb),
+                startup_delay_seconds=self._resolve_startup_delay(hb),
             )
         self._settings = settings
         return settings
@@ -105,11 +109,26 @@ class HeartbeatEmitter:
         interval = hb.get("interval_seconds", HeartbeatSettings.interval_seconds)
         return max(1, int(interval))
 
+    def _resolve_startup_delay(self, hb: dict) -> int:
+        if self.requested_startup_delay is not None:
+            return max(0, int(self.requested_startup_delay))
+        delay = hb.get("startup_delay_seconds", HeartbeatSettings.startup_delay_seconds)
+        return max(0, int(delay))
+
     def _run_loop(self) -> None:
         settings = self._load_settings()
         if self._collection is None:
             self._collection = get_collection(settings.collection)
         host = socket.gethostname()
+
+        if settings.startup_delay_seconds > 0:
+            LOGGER.info(
+                "Delaying first heartbeat for %ss to allow detector to evaluate existing gap.",
+                settings.startup_delay_seconds,
+            )
+            if self._stop_event.wait(settings.startup_delay_seconds):
+                return
+
         while not self._stop_event.is_set():
             start = time.perf_counter()
             try:
