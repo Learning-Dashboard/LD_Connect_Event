@@ -376,9 +376,10 @@ class SnapshotWriter:
     def append_event(self, interval: InactivityInterval) -> None:
         if not self.config.enabled:
             return
+        method_dir = interval.detection_method or "unknown"
         day_dir = (
             self.config.events_dir
-            / interval.project_id
+            / method_dir
             / interval.start_time.strftime("%Y")
             / interval.start_time.strftime("%m")
             / interval.start_time.strftime("%d")
@@ -386,12 +387,11 @@ class SnapshotWriter:
         day_dir.mkdir(parents=True, exist_ok=True)
         target = day_dir / "events.jsonl"
         payload = {
-            "project_id": interval.project_id,
             "detection_method": interval.detection_method,
             "severity": interval.severity,
             "start_time": interval.start_time.isoformat(),
             "end_time": interval.end_time.isoformat(),
-            "duration_seconds": interval.duration_seconds,
+            "duration_minutes": interval.duration_minutes,
             "metadata": interval.metadata,
         }
         with target.open("a", encoding="utf-8") as handle:
@@ -441,22 +441,22 @@ class InactivityDetector:
         now = _ensure_utc(now or datetime.now(timezone.utc))
         heartbeat_status = self.heartbeat_monitor.evaluate(now)
         stream_statuses = [inspector.evaluate(now) for inspector in self.log_inspectors]
-        grouped = self._group_by_project(stream_statuses)
         downtime_intervals: List[InactivityInterval] = []
         user_inactivity: List[UserInactivityInterval] = []
 
-        for project_id, statuses in grouped.items():
-            interval = self._build_downtime_interval(
-                project_id=project_id,
-                heartbeat_status=heartbeat_status,
-                log_statuses=statuses,
-                now=now,
-            )
-            if interval:
-                downtime_intervals.append(interval)
-                if not dry_run:
-                    self.repository.save_interval(interval)
-                    self.snapshot_writer.append_event(interval)
+        interval = self._build_downtime_interval(
+            heartbeat_status=heartbeat_status,
+            log_statuses=stream_statuses,
+            now=now,
+        )
+        if interval:
+            downtime_intervals.append(interval)
+            if not dry_run:
+                self.repository.save_interval(interval)
+                self.snapshot_writer.append_event(interval)
+
+        grouped = self._group_by_project(stream_statuses)
+        for statuses in grouped.values():
             for status in statuses:
                 user_interval = self._build_user_inactivity_interval(status=status, now=now)
                 if user_interval:
@@ -486,7 +486,6 @@ class InactivityDetector:
 
     def _build_downtime_interval(
         self,
-        project_id: str,
         heartbeat_status: HeartbeatStatus,
         log_statuses: List[LogStreamStatus],
         now: datetime,
@@ -494,19 +493,18 @@ class InactivityDetector:
         if not heartbeat_status.is_stale:
             return None
         start_time = heartbeat_status.stale_since
-        duration_seconds = max(0.0, (now - start_time).total_seconds())
+        duration_minutes = max(0.0, (now - start_time).total_seconds()) / 60.0
         metadata = {
             "heartbeat": heartbeat_status.to_dict(),
             "streams": [status.to_dict() for status in log_statuses],
         }
         return InactivityInterval(
-            project_id=project_id,
             detection_method="heartbeat",
             start_time=start_time,
             end_time=now,
             detection_source="heartbeat",
             severity="critical",
-            duration_seconds=duration_seconds,
+            duration_minutes=duration_minutes,
             metadata=metadata,
         )
 
@@ -518,7 +516,7 @@ class InactivityDetector:
         if not status.is_stale or not status.stale_since:
             return None
         start_time = status.stale_since
-        duration_seconds = max(0.0, (now - start_time).total_seconds())
+        duration_minutes = max(0.0, (now - start_time).total_seconds()) / 60.0
         metadata = {
             "reason": status.reason,
             "last_activity": status.last_activity.isoformat() if status.last_activity else None,
@@ -528,7 +526,7 @@ class InactivityDetector:
             stream_name=status.name,
             start_time=start_time,
             end_time=now,
-            duration_seconds=duration_seconds,
+            duration_minutes=duration_minutes,
             gap_seconds=status.gap_seconds,
             threshold_seconds=status.inactivity_threshold.total_seconds(),
             metadata=metadata,
@@ -536,12 +534,11 @@ class InactivityDetector:
 
     def _interval_to_dict(self, interval: InactivityInterval) -> Dict[str, Any]:
         return {
-            "project_id": interval.project_id,
             "detection_method": interval.detection_method,
             "severity": interval.severity,
             "start_time": interval.start_time.isoformat(),
             "end_time": interval.end_time.isoformat(),
-            "duration_seconds": interval.duration_seconds,
+            "duration_minutes": interval.duration_minutes,
         }
 
     def _user_interval_to_dict(self, interval: UserInactivityInterval) -> Dict[str, Any]:
@@ -550,7 +547,7 @@ class InactivityDetector:
             "stream_name": interval.stream_name,
             "start_time": interval.start_time.isoformat(),
             "end_time": interval.end_time.isoformat(),
-            "duration_seconds": interval.duration_seconds,
+            "duration_minutes": interval.duration_minutes,
             "gap_seconds": interval.gap_seconds,
             "threshold_seconds": interval.threshold_seconds,
         }

@@ -14,7 +14,7 @@ inactivity_detector:
       root_dir: logs
       glob: "github/*.log"
       timestamp_field: timestamp
-      inactivity_threshold_minutes: 10
+      inactivity_threshold_minutes: 1440 
       tail_lines: 400
       timezone: UTC
 
@@ -23,7 +23,7 @@ inactivity_detector:
       source_type: mongo
       collection: default_project_taiga_events
       timestamp_field: created_at
-      inactivity_threshold_minutes: 15
+      inactivity_threshold_minutes: 1440
       filters:
         project_id: default_project
 
@@ -31,7 +31,7 @@ inactivity_detector:
     base_dir: artifacts/inactivity_detector
     events_dir: artifacts/inactivity_detector/events
     reports_dir: artifacts/inactivity_detector/runs
-    enabled: true
+    enabled: false
 
   persistence:
     downtime_collection: inactivity_intervals
