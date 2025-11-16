@@ -7,25 +7,58 @@ inactivity_detector:
     interval_seconds: 60
     max_missed: 2
 
+  # Optional log sources for context (no user inactivity intervals are stored).
   log_sources:
-    - name: github_webhooks
-      project_id: default_project
-      source_type: file
-      root_dir: logs
-      glob: "github/*.log"
-      timestamp_field: timestamp
-      inactivity_threshold_minutes: 1440 
-      tail_lines: 400
-      timezone: UTC
-
-    - name: taiga_events
-      project_id: default_project
+    # GitHub collections
+    - name: github_pull_requests
+      project_id: test_team
       source_type: mongo
-      collection: default_project_taiga_events
+      collection: github_test_team.pull_requests
       timestamp_field: created_at
       inactivity_threshold_minutes: 1440
-      filters:
-        project_id: default_project
+
+    - name: github_issues
+      project_id: test_team
+      source_type: mongo
+      collection: github_test_team.issues
+      timestamp_field: created_at
+      inactivity_threshold_minutes: 1440
+
+    - name: github_commits
+      project_id: test_team
+      source_type: mongo
+      collection: github_test_team.commits
+      timestamp_field: date
+      inactivity_threshold_minutes: 1440
+
+    # Taiga collections
+    - name: taiga_issues
+      project_id: test_team
+      source_type: mongo
+      collection: taiga_test_team.issues
+      timestamp_field: created_date
+      inactivity_threshold_minutes: 1440
+
+    - name: taiga_tasks
+      project_id: test_team
+      source_type: mongo
+      collection: taiga_test_team.tasks
+      timestamp_field: created_date
+      inactivity_threshold_minutes: 1440
+
+    - name: taiga_userstories
+      project_id: test_team
+      source_type: mongo
+      collection: taiga_test_team.userstories
+      timestamp_field: created_date
+      inactivity_threshold_minutes: 1440
+
+    - name: taiga_epics
+      project_id: test_team
+      source_type: mongo
+      collection: taiga_test_team.epics
+      timestamp_field: created_date
+      inactivity_threshold_minutes: 1440
 
   outputs:
     base_dir: artifacts/inactivity_detector
@@ -35,4 +68,3 @@ inactivity_detector:
 
   persistence:
     downtime_collection: inactivity_intervals
-    user_inactivity_collection: user_inactivity_intervals

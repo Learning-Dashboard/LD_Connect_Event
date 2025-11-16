@@ -1,9 +1,9 @@
 """
-Hybrid inactivity detection logic.
+Heartbeat-based inactivity detection.
 
-The detector correlates webhook/log activity with system heartbeats to
-differentiate between user inactivity and infrastructure issues. It can be run
-manually or scheduled via cron/k8s jobs.
+The detector now relies solely on system heartbeats to decide downtime. Log
+streams are optional and only used for context in metadata; no user inactivity
+intervals are recorded. It can be run manually or scheduled via cron/k8s jobs.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import yaml
 from dateutil import parser as dtparser
@@ -24,8 +24,6 @@ from dateutil import parser as dtparser
 from inactivity_detector.ID_database import (
     InactivityInterval,
     InactivityRepository,
-    UserInactivityInterval,
-    UserInactivityRepository,
 )
 from database.mongo_client import get_collection
 
@@ -138,7 +136,6 @@ class DetectorConfig:
     log_sources: List[LogSourceConfig]
     outputs: OutputConfig
     inactivity_collection: str = "inactivity_intervals"
-    user_inactivity_collection: str = "user_inactivity_intervals"
 
     @classmethod
     def from_file(cls, path: Path) -> "DetectorConfig":
@@ -160,23 +157,17 @@ class DetectorConfig:
             LogSourceConfig.from_raw(entry, base_dir=base_dir)
             for entry in section.get("log_sources", [])
         ]
-        if not log_sources_cfg:
-            raise ValueError("At least one log source must be configured.")
         outputs_cfg = OutputConfig.from_raw(section.get("outputs", {}), base_dir=base_dir)
         outputs_cfg.ensure_directories()
         persistence_cfg = section.get("persistence", {})
         downtime_collection = persistence_cfg.get(
             "downtime_collection", persistence_cfg.get("collection", "inactivity_intervals")
         )
-        user_inactivity_collection = persistence_cfg.get(
-            "user_inactivity_collection", f"{downtime_collection}_user"
-        )
         return cls(
             heartbeat=heartbeat_cfg,
             log_sources=log_sources_cfg,
             outputs=outputs_cfg,
             inactivity_collection=downtime_collection,
-            user_inactivity_collection=user_inactivity_collection,
         )
 
 
@@ -204,7 +195,7 @@ class LogStreamStatus:
     project_id: str
     last_activity: Optional[datetime]
     inactivity_threshold: timedelta
-    gap_seconds: Optional[float]
+    gap_minutes: Optional[float]
     is_stale: bool
     stale_since: Optional[datetime]
     reason: str
@@ -214,8 +205,8 @@ class LogStreamStatus:
             "name": self.name,
             "project_id": self.project_id,
             "last_activity": self.last_activity.isoformat() if self.last_activity else None,
-            "gap_seconds": self.gap_seconds,
-            "threshold_seconds": self.inactivity_threshold.total_seconds(),
+            "gap_minutes": self.gap_minutes,
+            "threshold_minutes": self.inactivity_threshold.total_seconds() / 60.0,
             "is_stale": self.is_stale,
             "stale_since": self.stale_since.isoformat() if self.stale_since else None,
             "reason": self.reason,
@@ -276,29 +267,30 @@ class LogStreamInspector:
 
     def evaluate(self, now: datetime) -> LogStreamStatus:
         last_activity = self._fetch_last_activity()
-        if last_activity:
-            gap_seconds = (now - last_activity).total_seconds()
-        else:
-            gap_seconds = None
+        gap_seconds = (now - last_activity).total_seconds() if last_activity else None
+        gap_minutes = gap_seconds / 60.0 if gap_seconds is not None else None
         threshold_seconds = self.config.inactivity_threshold.total_seconds()
-        is_stale = (
-            gap_seconds is not None and gap_seconds >= threshold_seconds
-        ) or last_activity is None
-        if last_activity:
-            stale_since = last_activity + self.config.inactivity_threshold
+        threshold_minutes = threshold_seconds / 60.0
+        is_stale = (gap_minutes is None) or (gap_minutes >= threshold_minutes)
+
+        if is_stale:
+            stale_since = (
+                (last_activity + self.config.inactivity_threshold)
+                if last_activity
+                else now - self.config.inactivity_threshold
+            )
+            reason = "no historical activity" if last_activity is None else f"gap {gap_minutes:.1f}m >= {threshold_minutes:.1f}m"
         else:
-            stale_since = now - self.config.inactivity_threshold
-        reason = (
-            "no historical activity"
-            if last_activity is None
-            else f"gap {gap_seconds:.0f}s >= {threshold_seconds:.0f}s"
-        )
+            stale_since = None
+            reason = "stream healthy"
+            gap_minutes = max(gap_minutes, 0.0) if gap_minutes is not None else None
+
         return LogStreamStatus(
             name=self.config.name,
             project_id=self.config.project_id,
             last_activity=last_activity,
             inactivity_threshold=self.config.inactivity_threshold,
-            gap_seconds=gap_seconds,
+            gap_minutes=gap_minutes,
             is_stale=is_stale,
             stale_since=stale_since,
             reason=reason,
@@ -363,9 +355,27 @@ class LogStreamInspector:
         collection = self.collection_resolver(self.config.collection)
         query = dict(self.config.filters)
         doc = collection.find_one(query, sort=[(self.config.timestamp_field, -1)])
-        if not doc or self.config.timestamp_field not in doc:
+        if not doc:
             return None
-        return _parse_datetime(doc[self.config.timestamp_field])
+        value = _get_nested(doc, self.config.timestamp_field)
+        if value is None:
+            return None
+        return _parse_datetime(value)
+
+
+def _get_nested(doc: Dict[str, Any], field: str) -> Any:
+    """Safely fetch nested values using dot-notation (e.g., 'issue.created_at')."""
+    if not field:
+        return None
+    if field in doc:
+        return doc[field]
+    current: Any = doc
+    for part in field.split("."):
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return None
+    return current
 
 
 class SnapshotWriter:
@@ -412,7 +422,6 @@ class InactivityDetector:
         config: DetectorConfig,
         *,
         repository: Optional[InactivityRepository] = None,
-        user_repository: Optional[UserInactivityRepository] = None,
         heartbeat_monitor: Optional[HeartbeatMonitor] = None,
         collection_resolver: Callable[[str], Any] = get_collection,
         snapshot_writer: Optional[SnapshotWriter] = None,
@@ -420,9 +429,6 @@ class InactivityDetector:
         self.config = config
         self.collection_resolver = collection_resolver
         self.repository = repository or InactivityRepository(config.inactivity_collection)
-        self.user_repository = user_repository or UserInactivityRepository(
-            config.user_inactivity_collection
-        )
         self.heartbeat_monitor = heartbeat_monitor or HeartbeatMonitor(
             config.heartbeat, collection_resolver=collection_resolver
         )
@@ -442,7 +448,6 @@ class InactivityDetector:
         heartbeat_status = self.heartbeat_monitor.evaluate(now)
         stream_statuses = [inspector.evaluate(now) for inspector in self.log_inspectors]
         downtime_intervals: List[InactivityInterval] = []
-        user_inactivity: List[UserInactivityInterval] = []
 
         interval = self._build_downtime_interval(
             heartbeat_status=heartbeat_status,
@@ -455,34 +460,16 @@ class InactivityDetector:
                 self.repository.save_interval(interval)
                 self.snapshot_writer.append_event(interval)
 
-        grouped = self._group_by_project(stream_statuses)
-        for statuses in grouped.values():
-            for status in statuses:
-                user_interval = self._build_user_inactivity_interval(status=status, now=now)
-                if user_interval:
-                    user_inactivity.append(user_interval)
-                    if not dry_run:
-                        self.user_repository.save_interval(user_interval)
-
         if not dry_run:
             summary = {
                 "run_id": now.strftime("%Y%m%dT%H%M%SZ"),
                 "evaluated_at": now.isoformat(),
                 "detected_events": [self._interval_to_dict(i) for i in downtime_intervals],
-                "user_inactivity_events": [self._user_interval_to_dict(i) for i in user_inactivity],
                 "heartbeat": heartbeat_status.to_dict(),
                 "streams": [s.to_dict() for s in stream_statuses],
             }
             self.snapshot_writer.record_run(summary)
         return downtime_intervals
-
-    def _group_by_project(
-        self, statuses: Iterable[LogStreamStatus]
-    ) -> Dict[str, List[LogStreamStatus]]:
-        grouped: Dict[str, List[LogStreamStatus]] = {}
-        for status in statuses:
-            grouped.setdefault(status.project_id, []).append(status)
-        return grouped
 
     def _build_downtime_interval(
         self,
@@ -508,30 +495,6 @@ class InactivityDetector:
             metadata=metadata,
         )
 
-    def _build_user_inactivity_interval(
-        self,
-        status: LogStreamStatus,
-        now: datetime,
-    ) -> Optional[UserInactivityInterval]:
-        if not status.is_stale or not status.stale_since:
-            return None
-        start_time = status.stale_since
-        duration_minutes = max(0.0, (now - start_time).total_seconds()) / 60.0
-        metadata = {
-            "reason": status.reason,
-            "last_activity": status.last_activity.isoformat() if status.last_activity else None,
-        }
-        return UserInactivityInterval(
-            project_id=status.project_id,
-            stream_name=status.name,
-            start_time=start_time,
-            end_time=now,
-            duration_minutes=duration_minutes,
-            gap_seconds=status.gap_seconds,
-            threshold_seconds=status.inactivity_threshold.total_seconds(),
-            metadata=metadata,
-        )
-
     def _interval_to_dict(self, interval: InactivityInterval) -> Dict[str, Any]:
         return {
             "detection_method": interval.detection_method,
@@ -539,17 +502,6 @@ class InactivityDetector:
             "start_time": interval.start_time.isoformat(),
             "end_time": interval.end_time.isoformat(),
             "duration_minutes": interval.duration_minutes,
-        }
-
-    def _user_interval_to_dict(self, interval: UserInactivityInterval) -> Dict[str, Any]:
-        return {
-            "project_id": interval.project_id,
-            "stream_name": interval.stream_name,
-            "start_time": interval.start_time.isoformat(),
-            "end_time": interval.end_time.isoformat(),
-            "duration_minutes": interval.duration_minutes,
-            "gap_seconds": interval.gap_seconds,
-            "threshold_seconds": interval.threshold_seconds,
         }
 
 
