@@ -1,0 +1,71 @@
+inactivity_detector:
+  heartbeat:
+    collection: system_heartbeats
+    timestamp_field: emitted_at
+    status_field: status
+    ok_value: alive
+    interval_seconds: 60
+    max_missed: 2
+
+  # Optional log sources for context (no user inactivity intervals are stored).
+  log_sources:
+    # GitHub collections
+    - name: github_pull_requests
+      project_id: test_team
+      source_type: mongo
+      collection: github_test_team.pull_requests
+      timestamp_field: created_at
+      inactivity_threshold_minutes: 1440
+
+    - name: github_issues
+      project_id: test_team
+      source_type: mongo
+      collection: github_test_team.issues
+      # created_at is nested under issue.*
+      timestamp_field: issue.created_at
+      inactivity_threshold_minutes: 1440
+
+    - name: github_commits
+      project_id: test_team
+      source_type: mongo
+      collection: github_test_team.commits
+      timestamp_field: date
+      inactivity_threshold_minutes: 1440
+
+    # Taiga collections
+    - name: taiga_issues
+      project_id: test_team
+      source_type: mongo
+      collection: taiga_test_team.issues
+      timestamp_field: created_date
+      inactivity_threshold_minutes: 1440
+
+    - name: taiga_tasks
+      project_id: test_team
+      source_type: mongo
+      collection: taiga_test_team.tasks
+      timestamp_field: created_date
+      inactivity_threshold_minutes: 1440
+
+    - name: taiga_userstories
+      project_id: test_team
+      source_type: mongo
+      collection: taiga_test_team.userstories
+      timestamp_field: created_date
+      inactivity_threshold_minutes: 1440
+
+    - name: taiga_epics
+      project_id: test_team
+      source_type: mongo
+      collection: taiga_test_team.epics
+      timestamp_field: created_date
+      inactivity_threshold_minutes: 1440
+
+  outputs:
+    base_dir: artifacts/inactivity_detector
+    events_dir: artifacts/inactivity_detector/events
+    reports_dir: artifacts/inactivity_detector/runs
+    enabled: false
+
+  persistence:
+    downtime_collection: inactivity_intervals

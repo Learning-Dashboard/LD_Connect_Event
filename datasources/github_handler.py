@@ -161,12 +161,20 @@ def parse_github_issue_event(raw_payload: Dict, prj: str) -> Dict:
     issue_user_login = issue_user.get("login", "")
     issue_user_id = issue_user.get("id", "")
 
+    # Timestamps (stored in local Europe/Madrid for consistency with commits/PRs)
+    issued_created_at = to_madrid_local(issue_data.get("created_at", ""))
+    issued_updated_at = to_madrid_local(issue_data.get("updated_at", ""))
+    issued_closed_at = to_madrid_local(issue_data.get("closed_at", ""))
+
     # We can store relevant info about the issue as a dictionary
     issue_obj = {
         "number": issue_number,
         "title": issue_title,
         "state": issue_state,
         "body": issue_body,
+        "created_at": issued_created_at,
+        "updated_at": issued_updated_at,
+        "closed_at": issued_closed_at,
         "user": {
             "login": issue_user_login,
             "id": issue_user_id

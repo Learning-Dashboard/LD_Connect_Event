@@ -60,7 +60,7 @@ def github_webhook():
     if event_label == "commit":
         collection_name = f"github_{prj}.commits"
     elif event_label == "issue":
-        collection_name = f"{prj}_issues"
+        collection_name = f"github_{prj}.issues"
     elif event_label == "pull_request":
         collection_name = f"github_{prj}.pull_requests"
     
