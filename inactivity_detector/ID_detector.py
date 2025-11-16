@@ -14,9 +14,10 @@ import logging
 import re
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 import yaml
 from dateutil import parser as dtparser
@@ -27,25 +28,26 @@ from inactivity_detector.ID_database import (
 )
 from database.mongo_client import get_collection
 
+MADRID_TZ = ZoneInfo("Europe/Madrid")
 LOGGER = logging.getLogger(__name__)
 
 
-def _ensure_utc(dt_value: datetime) -> datetime:
+def _ensure_local(dt_value: datetime) -> datetime:
     if dt_value.tzinfo is None:
-        return dt_value.replace(tzinfo=timezone.utc)
-    return dt_value.astimezone(timezone.utc)
+        return dt_value.replace(tzinfo=MADRID_TZ)
+    return dt_value.astimezone(MADRID_TZ)
 
 
 def _parse_datetime(value: Any) -> Optional[datetime]:
     if value is None:
         return None
     if isinstance(value, datetime):
-        return _ensure_utc(value)
+        return _ensure_local(value)
     if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, tz=timezone.utc)
+        return datetime.fromtimestamp(value, tz=MADRID_TZ)
     if isinstance(value, str) and value.strip():
         try:
-            return _ensure_utc(dtparser.isoparse(value.strip()))
+            return _ensure_local(dtparser.isoparse(value.strip()))
         except (ValueError, TypeError):
             pass
     return None
@@ -227,7 +229,7 @@ class HeartbeatMonitor:
         if self.config.status_field and self.config.ok_value:
             query[self.config.status_field] = self.config.ok_value
         doc = self.collection.find_one(query, sort=[(self.config.timestamp_field, -1)])
-        last_seen = _parse_datetime(doc[self.config.timestamp_field]) if doc else None
+        last_seen = _parse_datetime(_get_nested(doc, self.config.timestamp_field)) if doc else None
         max_gap = max(1, self.config.interval_seconds) * (self.config.max_missed + 1)
         if last_seen:
             gap_seconds = (now - last_seen).total_seconds()
@@ -344,7 +346,7 @@ class LogStreamInspector:
         if self.config.timestamp_format:
             try:
                 parsed = datetime.strptime(line.strip(), self.config.timestamp_format)
-                return _ensure_utc(parsed)
+                return _ensure_local(parsed)
             except ValueError:
                 pass
         return _parse_datetime(line)
@@ -444,7 +446,7 @@ class InactivityDetector:
         return cls(config)
 
     def run_once(self, now: Optional[datetime] = None, *, dry_run: bool = False) -> List[InactivityInterval]:
-        now = _ensure_utc(now or datetime.now(timezone.utc))
+        now = _ensure_local(now or datetime.now(MADRID_TZ))
         heartbeat_status = self.heartbeat_monitor.evaluate(now)
         stream_statuses = [inspector.evaluate(now) for inspector in self.log_inspectors]
         downtime_intervals: List[InactivityInterval] = []
@@ -462,7 +464,7 @@ class InactivityDetector:
 
         if not dry_run:
             summary = {
-                "run_id": now.strftime("%Y%m%dT%H%M%SZ"),
+                "run_id": now.strftime("%Y%m%dT%H%M%S%z"),
                 "evaluated_at": now.isoformat(),
                 "detected_events": [self._interval_to_dict(i) for i in downtime_intervals],
                 "heartbeat": heartbeat_status.to_dict(),

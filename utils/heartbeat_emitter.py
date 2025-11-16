@@ -11,14 +11,16 @@ import socket
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import yaml
 
 from database.mongo_client import get_collection
 
+MADRID_TZ = ZoneInfo("Europe/Madrid")
 LOGGER = logging.getLogger("heartbeat_emitter")
 
 
@@ -113,8 +115,9 @@ class HeartbeatEmitter:
         while not self._stop_event.is_set():
             start = time.perf_counter()
             try:
+                now_local = datetime.now(MADRID_TZ).replace(tzinfo=None)
                 payload = {
-                    settings.timestamp_field: datetime.now(timezone.utc),
+                    settings.timestamp_field: now_local,
                     settings.status_field: settings.ok_value,
                     "source": "LD_CONNECT",
                     "host": host,

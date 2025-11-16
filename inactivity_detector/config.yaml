@@ -21,7 +21,8 @@ inactivity_detector:
       project_id: test_team
       source_type: mongo
       collection: github_test_team.issues
-      timestamp_field: created_at
+      # created_at is nested under issue.*
+      timestamp_field: issue.created_at
       inactivity_threshold_minutes: 1440
 
     - name: github_commits

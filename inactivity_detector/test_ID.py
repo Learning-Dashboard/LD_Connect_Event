@@ -5,13 +5,14 @@ Unit tests for the inactivity detector.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import mongomock
 import pytest
 
-from inactivity_detector.ID_database import InactivityRepository, UserInactivityRepository
+from inactivity_detector.ID_database import InactivityRepository
 from inactivity_detector.ID_detector import (
     DetectorConfig,
     HeartbeatConfig,
@@ -19,6 +20,8 @@ from inactivity_detector.ID_detector import (
     LogSourceConfig,
     OutputConfig,
 )
+
+MADRID_TZ = ZoneInfo("Europe/Madrid")
 
 
 @pytest.fixture()
@@ -63,14 +66,10 @@ def detector_components(tmp_path: Path):
     repository = InactivityRepository(
         "inactivity_intervals_test", collection=db["inactivity_intervals_test"]
     )
-    user_repository = UserInactivityRepository(
-        "user_inactivity_test", collection=db["user_inactivity_test"]
-    )
 
     detector = InactivityDetector(
         config,
         repository=repository,
-        user_repository=user_repository,
         collection_resolver=lambda name: db[name],
     )
     return {
@@ -79,7 +78,6 @@ def detector_components(tmp_path: Path):
         "logs_dir": logs_dir,
         "heartbeat_collection": db["system_heartbeats"],
         "downtime_collection": db["inactivity_intervals_test"],
-        "user_collection": db["user_inactivity_test"],
     }
 
 
@@ -95,7 +93,7 @@ def test_downtime_detection_records_heartbeat_only(detector_components):
     detector = detector_components["detector"]
     hb_collection = detector_components["heartbeat_collection"]
     logs_dir = detector_components["logs_dir"]
-    now = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2025, 1, 1, 12, 0, tzinfo=MADRID_TZ)
 
     hb_collection.insert_one({"emitted_at": now - timedelta(minutes=5), "status": "alive"})
     _write_log(logs_dir, now - timedelta(minutes=20))
@@ -111,16 +109,12 @@ def test_downtime_detection_records_heartbeat_only(detector_components):
     assert downtime_doc is not None
     assert downtime_doc["detection_method"] == "heartbeat"
 
-    user_docs = list(detector_components["user_collection"].find())
-    assert len(user_docs) == 1
-    assert user_docs[0]["stream_name"] == "github_stream"
-
 
 def test_log_inactivity_persists_without_downtime(detector_components):
     detector = detector_components["detector"]
     hb_collection = detector_components["heartbeat_collection"]
     logs_dir = detector_components["logs_dir"]
-    now = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2025, 1, 1, 12, 0, tzinfo=MADRID_TZ)
 
     hb_collection.insert_one({"emitted_at": now - timedelta(seconds=30), "status": "alive"})
     _write_log(logs_dir, now - timedelta(minutes=30))
@@ -129,16 +123,13 @@ def test_log_inactivity_persists_without_downtime(detector_components):
 
     assert intervals == []
     assert detector_components["downtime_collection"].count_documents({}) == 0
-    user_docs = list(detector_components["user_collection"].find())
-    assert len(user_docs) == 1
-    assert user_docs[0]["gap_seconds"] > 0
 
 
 def test_no_events_with_recent_activity(detector_components):
     detector = detector_components["detector"]
     hb_collection = detector_components["heartbeat_collection"]
     logs_dir = detector_components["logs_dir"]
-    now = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2025, 1, 1, 12, 0, tzinfo=MADRID_TZ)
 
     hb_collection.insert_one({"emitted_at": now - timedelta(seconds=30), "status": "alive"})
     _write_log(logs_dir, now - timedelta(minutes=2))
@@ -147,4 +138,3 @@ def test_no_events_with_recent_activity(detector_components):
 
     assert intervals == []
     assert detector_components["downtime_collection"].count_documents({}) == 0
-    assert detector_components["user_collection"].count_documents({}) == 0

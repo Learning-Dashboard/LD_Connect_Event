@@ -8,17 +8,24 @@ logic. All datetimes are normalized to UTC before storage to simplify queries.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, Optional
+from zoneinfo import ZoneInfo
 
 from database.mongo_client import get_collection
 
+MADRID_TZ = ZoneInfo("Europe/Madrid")
 
-def _ensure_utc(value: datetime) -> datetime:
-    """Normalize naive datetimes to UTC."""
+def _ensure_madrid(value: datetime) -> datetime:
+    """Normalize datetimes to Europe/Madrid with tz info."""
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=MADRID_TZ)
+    return value.astimezone(MADRID_TZ)
+
+
+def _madrid_naive(value: datetime) -> datetime:
+    """Convert to Madrid time and drop tzinfo for storage (keeps local wall time)."""
+    return _ensure_madrid(value).replace(tzinfo=None)
 
 
 @dataclass
@@ -39,10 +46,10 @@ class InactivityInterval:
     def to_document(self) -> Dict[str, Any]:
         """Serialize the dataclass to a Mongo-friendly dict."""
         doc = asdict(self)
-        doc["start_time"] = _ensure_utc(self.start_time)
-        doc["end_time"] = _ensure_utc(self.end_time)
+        doc["start_time"] = _madrid_naive(self.start_time)
+        doc["end_time"] = _madrid_naive(self.end_time)
         doc["duration_minutes"] = float(self.duration_minutes)
-        doc.setdefault("last_updated", datetime.now(timezone.utc))
+        doc.setdefault("last_updated", datetime.now(MADRID_TZ).replace(tzinfo=None))
         if self.project_id is None:
             doc.pop("project_id", None)
         return doc
@@ -58,8 +65,8 @@ class InactivityInterval:
             duration_minutes = 0.0
         return cls(
             detection_method=data["detection_method"],
-            start_time=_ensure_utc(data["start_time"]),
-            end_time=_ensure_utc(data["end_time"]),
+            start_time=_ensure_madrid(data["start_time"]),
+            end_time=_ensure_madrid(data["end_time"]),
             detection_source=data.get("detection_source", data["detection_method"]),
             severity=data.get("severity", "warning"),
             duration_minutes=duration_minutes,
@@ -95,7 +102,7 @@ class InactivityRepository:
         doc = interval.to_document()
         query = {
             "detection_method": interval.detection_method,
-            "start_time": _ensure_utc(interval.start_time),
+            "start_time": _madrid_naive(interval.start_time),
         }
         if interval.project_id is not None:
             query["project_id"] = interval.project_id
