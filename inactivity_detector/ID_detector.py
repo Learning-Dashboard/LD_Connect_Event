@@ -223,6 +223,7 @@ class HeartbeatMonitor:
     ) -> None:
         self.config = config
         self.collection = collection_resolver(config.collection)
+        _normalize_timestamp_field(self.collection, config.timestamp_field)
 
     def evaluate(self, now: datetime) -> HeartbeatStatus:
         query = {}
@@ -355,6 +356,7 @@ class LogStreamInspector:
         if not self.config.collection:
             raise ValueError(f"Log source '{self.config.name}' missing 'collection'.")
         collection = self.collection_resolver(self.config.collection)
+        _normalize_timestamp_field(collection, self.config.timestamp_field)
         query = dict(self.config.filters)
         doc = collection.find_one(query, sort=[(self.config.timestamp_field, -1)])
         if not doc:
@@ -378,6 +380,25 @@ def _get_nested(doc: Dict[str, Any], field: str) -> Any:
         else:
             return None
     return current
+
+
+def _normalize_timestamp_field(collection, field: str) -> None:
+    """
+    Convert BSON date values into Madrid-aware ISO strings so lexicographic
+    ordering behaves as expected.
+    """
+    if not field:
+        return
+    try:
+        cursor = collection.find({field: {"$type": "date"}}, projection=[field])
+    except Exception:
+        return
+    for doc in cursor:
+        value = _get_nested(doc, field)
+        if isinstance(value, datetime):
+            collection.update_one(
+                {"_id": doc["_id"]}, {"$set": {field: _ensure_local(value).isoformat()}}
+            )
 
 
 class SnapshotWriter:

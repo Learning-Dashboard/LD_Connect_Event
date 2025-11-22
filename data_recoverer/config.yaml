@@ -1,0 +1,20 @@
+data_recoverer:
+  inactivity_collection: inactivity_intervals
+  run_log_collection: data_recovery_runs
+  startup_run:
+    enabled: false
+    since_hours: null
+    limit: null
+    dry_run: false
+
+  # Configure the projects that can be recovered. Replace the sample
+  # repositories and Taiga slug with the real values for your deployment.
+  projects:
+    - project_id: test_team
+      github:
+        repositories:
+          - jiahaofib/test_repo
+        events: [commits, issues, pull_requests]
+      taiga:
+        slug: jiahaoliu-test-project
+        events: [tasks, issues, userstories, epics]

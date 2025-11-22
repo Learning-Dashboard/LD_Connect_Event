@@ -89,13 +89,21 @@ def _write_log(logs_dir: Path, timestamp: datetime) -> None:
     )
 
 
+def _heartbeat_doc(timestamp: datetime) -> dict:
+    ts_local = timestamp.astimezone(MADRID_TZ)
+    return {
+        "emitted_at": ts_local.isoformat(),
+        "status": "alive",
+    }
+
+
 def test_downtime_detection_records_heartbeat_only(detector_components):
     detector = detector_components["detector"]
     hb_collection = detector_components["heartbeat_collection"]
     logs_dir = detector_components["logs_dir"]
     now = datetime(2025, 1, 1, 12, 0, tzinfo=MADRID_TZ)
 
-    hb_collection.insert_one({"emitted_at": now - timedelta(minutes=5), "status": "alive"})
+    hb_collection.insert_one(_heartbeat_doc(now - timedelta(minutes=5)))
     _write_log(logs_dir, now - timedelta(minutes=20))
 
     intervals = detector.run_once(now=now)
@@ -116,7 +124,7 @@ def test_log_inactivity_persists_without_downtime(detector_components):
     logs_dir = detector_components["logs_dir"]
     now = datetime(2025, 1, 1, 12, 0, tzinfo=MADRID_TZ)
 
-    hb_collection.insert_one({"emitted_at": now - timedelta(seconds=30), "status": "alive"})
+    hb_collection.insert_one(_heartbeat_doc(now - timedelta(seconds=30)))
     _write_log(logs_dir, now - timedelta(minutes=30))
 
     intervals = detector.run_once(now=now)
@@ -131,7 +139,7 @@ def test_no_events_with_recent_activity(detector_components):
     logs_dir = detector_components["logs_dir"]
     now = datetime(2025, 1, 1, 12, 0, tzinfo=MADRID_TZ)
 
-    hb_collection.insert_one({"emitted_at": now - timedelta(seconds=30), "status": "alive"})
+    hb_collection.insert_one(_heartbeat_doc(now - timedelta(seconds=30)))
     _write_log(logs_dir, now - timedelta(minutes=2))
 
     intervals = detector.run_once(now=now)
