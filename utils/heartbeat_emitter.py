@@ -115,9 +115,9 @@ class HeartbeatEmitter:
         while not self._stop_event.is_set():
             start = time.perf_counter()
             try:
-                now_local = datetime.now(MADRID_TZ).replace(tzinfo=None)
+                now_local = datetime.now(MADRID_TZ)
                 payload = {
-                    settings.timestamp_field: now_local,
+                    settings.timestamp_field: now_local.isoformat(),
                     settings.status_field: settings.ok_value,
                     "source": "LD_CONNECT",
                     "host": host,

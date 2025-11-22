@@ -4,8 +4,8 @@ inactivity_detector:
     timestamp_field: emitted_at
     status_field: status
     ok_value: alive
-    interval_seconds: 60
-    max_missed: 2
+    interval_seconds: 10
+    max_missed: 0
 
   # Optional log sources for context (no user inactivity intervals are stored).
   log_sources:
