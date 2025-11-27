@@ -114,3 +114,24 @@ python -m data_recoverer.runner \
 ```
 
 Omit `--since-hours`, `--limit`, or `--dry-run` to use the defaults.
+
+## REST trigger from the running Flask app
+The recoverer can also be launched via HTTP. Send a `POST` to
+`/data-recovery/run` (Flask host/port) with an optional JSON body:
+
+```json
+{
+  "since": "2024-11-25T10:00:00Z",  // ISO timestamp, takes precedence over since_hours
+  "since_hours": 24,                // look-back window if "since" is omitted
+  "limit": 5,                       // optional max inactivity intervals
+  "dry_run": false,                 // true to fetch without writing
+  "run_async": true,                // return 202 immediately and run in background
+  "config_path": "data_recoverer/config.yaml" // override config location (optional)
+}
+```
+
+If no body is provided it uses the defaults from `data_recoverer/config.yaml`
+and processes all outstanding inactivity intervals. When `run_async` is false
+(default) the endpoint returns a summary when the run finishes; if true, it
+returns `202 Accepted` once the background thread is started. Concurrent runs
+are rejected with HTTP 409.
