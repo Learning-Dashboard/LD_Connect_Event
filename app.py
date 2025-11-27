@@ -11,6 +11,7 @@ from utils.heartbeat_emitter import HeartbeatEmitter
 from routes.excel_routes import excel_bp
 from routes.github_routes import github_bp
 from routes.taiga_routes import taiga_bp
+from routes.data_recovery_routes import data_recovery_bp
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -118,6 +119,7 @@ def create_app():
     app.register_blueprint(github_bp)
     app.register_blueprint(taiga_bp)
     app.register_blueprint(excel_bp)
+    app.register_blueprint(data_recovery_bp)
 
     logger.info("Flask created and Blueprints registered successfully.")
     return app
