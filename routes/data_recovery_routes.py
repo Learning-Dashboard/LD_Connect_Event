@@ -53,7 +53,15 @@ def _parse_limit(payload: Dict[str, Any]) -> Optional[int]:
         raise ValueError("Invalid 'limit'; expected an integer.") from exc
 
 
-def _run_recovery(config_path: Path, *, since: Optional[datetime], limit: Optional[int], dry_run: bool) -> Dict[str, Any]:
+def _run_recovery(
+    config_path: Path,
+    *,
+    since: Optional[datetime],
+    limit: Optional[int],
+    start_date: Optional[datetime],
+    end_date: Optional[datetime],
+    dry_run: bool
+) -> Dict[str, Any]:
     """
     Execute the recovery once while holding the global run lock to avoid
     overlapping runs.
@@ -63,7 +71,16 @@ def _run_recovery(config_path: Path, *, since: Optional[datetime], limit: Option
         try:
             recoverer = DataRecoverer.from_file(config_path)
             started_at = datetime.now(MADRID_TZ)
-            summary = recoverer.run_once(since=since, limit=limit, dry_run=dry_run)
+            
+            if start_date and end_date:
+                summary = recoverer.recover_manual_range(
+                    start=start_date,
+                    end=end_date,
+                    dry_run=dry_run
+                )
+            else:
+                summary = recoverer.run_once(since=since, limit=limit, dry_run=dry_run)
+                
             finished_at = datetime.now(MADRID_TZ)
             logger.info("Data recovery run finished via API: %s", summary)
             return {
@@ -80,9 +97,13 @@ def run_data_recovery():
     """
     Trigger a one-off data recovery. Accepts an optional JSON body:
     {
-        "since": "<ISO timestamp>",
-        "since_hours": <float>,   # used when "since" is not provided
-        "limit": <int>,
+        "since": "<ISO timestamp>",      # Option A: Process existing intervals since X
+        "since_hours": <float>,          # Option A: Process existing intervals since X hours ago
+        "limit": <int>,                  # Option A: Max intervals to process
+        
+        "start_date": "<ISO timestamp>", # Option B: Manual range start
+        "end_date": "<ISO timestamp>",   # Option B: Manual range end
+        
         "dry_run": <bool>,
         "config_path": "<path to config>",
         "run_async": <bool>       # if true, start in background and return 202
@@ -95,6 +116,21 @@ def run_data_recovery():
     try:
         since = _parse_since(payload)
         limit = _parse_limit(payload)
+        
+        start_date = None
+        end_date = None
+        if "start_date" in payload and "end_date" in payload:
+            start_str = str(payload["start_date"]).strip().replace("Z", "+00:00")
+            end_str = str(payload["end_date"]).strip().replace("Z", "+00:00")
+            start_date = datetime.fromisoformat(start_str)
+            end_date = datetime.fromisoformat(end_str)
+            
+            # Ensure timezone awareness (default to Madrid if missing)
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=MADRID_TZ)
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=MADRID_TZ)
+                
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -109,6 +145,8 @@ def run_data_recovery():
         "config_path": str(config_path),
         "since": since.isoformat() if since else None,
         "limit": limit,
+        "start_date": start_date.isoformat() if start_date else None,
+        "end_date": end_date.isoformat() if end_date else None,
         "dry_run": dry_run,
     }
 
@@ -116,7 +154,14 @@ def run_data_recovery():
         _run_inflight.set()
         def _background_job() -> None:
             try:
-                result = _run_recovery(config_path, since=since, limit=limit, dry_run=dry_run)
+                result = _run_recovery(
+                    config_path, 
+                    since=since, 
+                    limit=limit, 
+                    start_date=start_date, 
+                    end_date=end_date, 
+                    dry_run=dry_run
+                )
                 logger.info("Async data recovery completed: %s", result)
             except Exception:  # pragma: no cover - defensive logging
                 logger.exception("Async data recovery run failed.")
@@ -134,7 +179,14 @@ def run_data_recovery():
         )
 
     try:
-        result = _run_recovery(config_path, since=since, limit=limit, dry_run=dry_run)
+        result = _run_recovery(
+            config_path, 
+            since=since, 
+            limit=limit, 
+            start_date=start_date, 
+            end_date=end_date, 
+            dry_run=dry_run
+        )
     except Exception:  # pragma: no cover - defensive logging
         logger.exception("Data recovery run failed.")
         return jsonify({"status": "error", "message": "Data recovery run failed; check logs for details."}), 500
