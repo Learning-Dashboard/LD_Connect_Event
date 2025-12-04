@@ -198,6 +198,60 @@ class DataRecoverer:
                     self._record_run(interval, project_ids, [], status="failed")
         return summary
 
+    def recover_manual_range(
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        projects: Optional[List[str]] = None,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Manually trigger recovery for a specific time range, bypassing the
+        inactivity detector's intervals.
+        """
+        start = _local_aware(start)
+        end = _local_aware(end)
+        
+        # Create a synthetic interval for this manual run
+        # We use a special detection_method to distinguish it in logs
+        metadata = {}
+        if projects:
+            # If specific projects are requested, we can hint them in metadata
+            # though _project_ids_for_interval will need to handle this or we override it.
+            # For now, let's just rely on the fact that if projects is None, it does all.
+            # If projects is set, we might need to filter inside _recover_interval or 
+            # create a metadata structure that _project_ids_for_interval understands.
+            # Let's stick to the simplest approach: if projects is passed, we construct
+            # a metadata that looks like what _project_ids_for_interval expects.
+            streams = [{"project_id": pid} for pid in projects]
+            metadata["streams"] = streams
+
+        interval = InactivityInterval(
+            detection_method="manual_api",
+            start_time=start,
+            end_time=end,
+            detection_source="manual",
+            severity="manual",
+            duration_minutes=(end - start).total_seconds() / 60.0,
+            metadata=metadata,
+        )
+
+        summary = {"processed_intervals": 0, "batches": 0, "documents": 0}
+        try:
+            batch_count, doc_count = self._recover_interval(interval, dry_run=dry_run)
+            summary["processed_intervals"] = 1
+            summary["batches"] = batch_count
+            summary["documents"] = doc_count
+        except Exception as exc:
+            project_ids = self._project_ids_for_interval(interval)
+            self.error_tracker.record_failure(interval, "manual_recovery", exc)
+            if not dry_run:
+                self._record_run(interval, project_ids, [], status="failed")
+            raise exc  # Re-raise for API feedback
+            
+        return summary
+
     def _load_intervals(
         self,
         *,
