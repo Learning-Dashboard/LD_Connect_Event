@@ -23,6 +23,7 @@ from data_recoverer.DR_error_control import RetryPolicy, raise_for_status
 from datasources.github_handler import parse_github_event
 from datasources.taiga_handler import to_madrid_local
 from utils.taiga_token.taiga_auth import get_taiga_token
+from utils.rate_limiter import TokenBucketRateLimiter
 
 MADRID_TZ = ZoneInfo("Europe/Madrid")
 LOGGER = logging.getLogger(__name__)
@@ -53,9 +54,12 @@ class GitHubAPIClient:
         *,
         retry_policy: Optional[RetryPolicy] = None,
         session: Optional[requests.Session] = None,
+        rate_limit_per_second: float = 1.0,
     ) -> None:
         self.retry = retry_policy or RetryPolicy()
         self.session = session or requests.Session()
+        # GitHub allows 5000 req/hour (~1.38/sec). We use 1.0 to be safe.
+        self.limiter = TokenBucketRateLimiter(capacity=5, refill_rate=rate_limit_per_second)
 
     def _headers(self, prj: str) -> Dict[str, str]:
         token = None
@@ -73,6 +77,7 @@ class GitHubAPIClient:
     def _paginate(self, url: str, headers: Dict[str, str]) -> Iterable[Dict[str, Any]]:
         while url:
             def _do_request() -> requests.Response:
+                self.limiter.acquire()
                 resp = self.session.get(url, headers=headers, timeout=30)
                 raise_for_status(resp)
                 return resp
@@ -265,10 +270,13 @@ class TaigaAPIClient:
         *,
         retry_policy: Optional[RetryPolicy] = None,
         session: Optional[requests.Session] = None,
+        rate_limit_per_second: float = 1.0,
     ) -> None:
         self.retry = retry_policy or RetryPolicy()
         self.session = session or requests.Session()
         self._project_cache: Dict[str, int] = {}
+        # Taiga limits vary, but 1 req/sec is generally safe for self-hosted or standard tiers.
+        self.limiter = TokenBucketRateLimiter(capacity=5, refill_rate=rate_limit_per_second)
 
     def _auth_headers(self, prj: str) -> Dict[str, str]:
         user = None
@@ -298,6 +306,7 @@ class TaigaAPIClient:
         url = f"{self.BASE_URL}/projects/by_slug"
 
         def _do_request() -> requests.Response:
+            self.limiter.acquire()
             resp = self.session.get(url, headers=headers, params={"slug": slug}, timeout=15)
             raise_for_status(resp)
             return resp
@@ -364,6 +373,7 @@ class TaigaAPIClient:
         params.update(extra_params)
 
         def _do_request() -> requests.Response:
+            self.limiter.acquire()
             resp = self.session.get(url, headers=headers, params=params, timeout=30)
             raise_for_status(resp)
             return resp
