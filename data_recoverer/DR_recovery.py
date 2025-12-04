@@ -20,6 +20,7 @@ from database.mongo_client import get_collection
 from data_recoverer.DR_api import GitHubAPIClient, RecoveryBatch, TaigaAPIClient
 from data_recoverer.DR_error_control import RecoveryErrorTracker
 from inactivity_detector.ID_database import InactivityInterval, ensure_interval_timezone_fields
+from routes.API_publisher.API_event_publisher import notify_eval_push
 
 MADRID_TZ = ZoneInfo("Europe/Madrid")
 LOGGER = logging.getLogger(__name__)
@@ -328,6 +329,11 @@ class DataRecoverer:
             return 0
         try:
             res = coll.bulk_write(operations, ordered=False)
+            
+            # Notify LD_Eval for each document in the batch
+            for doc in batch.documents:
+                self._notify_eval(doc)
+
             return res.matched_count + len(res.upserted_ids)
         except TypeError:
             # mongomock compatibility: some versions do not accept all bulk args
@@ -335,7 +341,49 @@ class DataRecoverer:
             for op in operations:
                 coll.update_one(op._filter, op._doc, upsert=True)
                 inserted += 1
+                self._notify_eval(op._doc["$set"])
             return inserted
+
+    def _notify_eval(self, doc: Dict[str, Any]) -> None:
+        """
+        Notify LD_Eval about the recovered event.
+        We extract the necessary fields from the document.
+        """
+        try:
+            # Extract fields based on what notify_eval_push expects
+            # event_type, prj, author_login, quality_model
+            
+            event_type = doc.get("event_type") or doc.get("event") # GitHub handler uses 'event', Taiga uses 'event_type'
+            
+            # Map 'commit' to 'push' as LD_Eval expects 'push'
+            if event_type == "commit":
+                event_type = "push"
+
+            prj = doc.get("prj")
+            
+            # author_login
+            # GitHub: 'sender_info' -> 'login'? Or 'author' -> 'username'?
+            # Taiga: 'assigned_by' or 'created_by'?
+            # Let's look at what 'author_login' maps to in the existing ingestion.
+            # In app.py (LD_Connect), it calls notify_eval_push.
+            # For now, let's try to find a reasonable field.
+            
+            author_login = doc.get("author_login") # Maybe it's already there?
+            if not author_login:
+                # Fallback logic
+                sender = doc.get("sender_info") or {}
+                author_login = sender.get("login") # GitHub
+                
+                if not author_login:
+                     author_login = doc.get("assigned_by") # Taiga
+            
+            quality_model = doc.get("quality_model") # Optional
+            
+            if event_type and prj:
+                 notify_eval_push(event_type, prj, author_login, quality_model)
+                 
+        except Exception as e:
+            LOGGER.warning(f"Failed to notify LD_Eval for recovered event: {e}")
 
     def _record_run(
         self,
