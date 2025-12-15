@@ -11,53 +11,53 @@ inactivity_detector:
   log_sources:
     # GitHub collections
     - name: github_pull_requests
-      project_id: test_team
+      project_id: LD_Test
       source_type: mongo
-      collection: github_test_team.pull_requests
+      collection: github_LD_Test.pull_requests
       timestamp_field: created_at
       inactivity_threshold_minutes: 1440
 
     - name: github_issues
-      project_id: test_team
+      project_id: LD_Test
       source_type: mongo
-      collection: github_test_team.issues
+      collection: github_LD_Test.issues
       # created_at is nested under issue.*
       timestamp_field: issue.created_at
       inactivity_threshold_minutes: 1440
 
     - name: github_commits
-      project_id: test_team
+      project_id: LD_Test
       source_type: mongo
-      collection: github_test_team.commits
+      collection: github_LD_Test.commits
       timestamp_field: date
       inactivity_threshold_minutes: 1440
 
     # Taiga collections
     - name: taiga_issues
-      project_id: test_team
+      project_id: LD_Test
       source_type: mongo
-      collection: taiga_test_team.issues
+      collection: taiga_LD_Test.issues
       timestamp_field: created_date
       inactivity_threshold_minutes: 1440
 
     - name: taiga_tasks
-      project_id: test_team
+      project_id: LD_Test
       source_type: mongo
-      collection: taiga_test_team.tasks
+      collection: taiga_LD_Test.tasks
       timestamp_field: created_date
       inactivity_threshold_minutes: 1440
 
     - name: taiga_userstories
-      project_id: test_team
+      project_id: LD_Test
       source_type: mongo
-      collection: taiga_test_team.userstories
+      collection: taiga_LD_Test.userstories
       timestamp_field: created_date
       inactivity_threshold_minutes: 1440
 
     - name: taiga_epics
-      project_id: test_team
+      project_id: LD_Test
       source_type: mongo
-      collection: taiga_test_team.epics
+      collection: taiga_LD_Test.epics
       timestamp_field: created_date
       inactivity_threshold_minutes: 1440
 
