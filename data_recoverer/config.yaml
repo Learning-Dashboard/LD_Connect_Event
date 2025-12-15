@@ -18,3 +18,11 @@ data_recoverer:
       taiga:
         slug: jiahaoliu-test-project
         events: [tasks, issues, userstories, epics]
+    - project_id: LD_Test
+      github:
+        repositories:
+          - LearningDashboard-UPC/LD_Test_Repo
+        events: [commits, issues, pull_requests]
+      taiga:
+        slug: learningdashboard-upc-ld-testproject-2025
+        events: [tasks, issues, userstories, epics]

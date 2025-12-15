@@ -79,10 +79,18 @@ class GitHubAPIClient:
             def _do_request() -> requests.Response:
                 self.limiter.acquire()
                 resp = self.session.get(url, headers=headers, timeout=30)
+                if resp.status_code == 404:
+                    # Repository/resource not found; treat as empty.
+                    return None
+                if resp.status_code == 409:
+                    # "Conflict" - usually means empty git repository.
+                    return None
                 raise_for_status(resp)
                 return resp
 
             resp = self.retry.run(_do_request)
+            if resp is None:
+                return
             yield from resp.json()
             url = resp.links.get("next", {}).get("url")
 
@@ -308,10 +316,14 @@ class TaigaAPIClient:
         def _do_request() -> requests.Response:
             self.limiter.acquire()
             resp = self.session.get(url, headers=headers, params={"slug": slug}, timeout=15)
+            if resp.status_code == 404:
+                return None
             raise_for_status(resp)
             return resp
 
         resp = self.retry.run(_do_request)
+        if resp is None:
+            return None
         pid = resp.json().get("id")
         if pid:
             self._project_cache[slug] = int(pid)
@@ -375,10 +387,14 @@ class TaigaAPIClient:
         def _do_request() -> requests.Response:
             self.limiter.acquire()
             resp = self.session.get(url, headers=headers, params=params, timeout=30)
+            if resp.status_code == 404:
+                return None
             raise_for_status(resp)
             return resp
 
         resp = self.retry.run(_do_request)
+        if resp is None:
+            return []
         payloads = resp.json()
         docs: List[Dict[str, Any]] = []
         for item in payloads:
