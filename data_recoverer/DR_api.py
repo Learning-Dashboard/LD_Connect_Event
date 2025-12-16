@@ -124,7 +124,7 @@ class GitHubAPIClient:
                     batches.append(
                         RecoveryBatch(
                             collection=f"github_{prj}.issues",
-                            key_field="issue_id",
+                            key_field="issue.number",
                             documents=issue_docs,
                         )
                     )
@@ -227,7 +227,6 @@ class GitHubAPIClient:
             }
             parsed = parse_github_event(payload, prj)
             parsed["prj"] = prj
-            parsed["issue_id"] = parsed.get("issue", {}).get("number")
             docs.append(parsed)
         return docs
 
