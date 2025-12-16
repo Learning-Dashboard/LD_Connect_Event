@@ -55,6 +55,21 @@ def _parse_local(value: Any) -> Optional[datetime]:
     return None
 
 
+def _get_nested(doc: Dict[str, Any], path: str) -> Any:
+    """Get a value from a nested dict using dot notation (e.g., 'issue.number')."""
+    if not path:
+        return None
+    if path in doc:
+        return doc[path]
+    current: Any = doc
+    for part in path.split("."):
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return None
+    return current
+
+
 @dataclass
 class GitHubProjectConfig:
     repositories: List[str] = field(default_factory=list)
@@ -321,7 +336,7 @@ class DataRecoverer:
         coll = self.collection_resolver(batch.collection)
         operations = []
         for doc in batch.documents:
-            key_value = doc.get(batch.key_field)
+            key_value = _get_nested(doc, batch.key_field)
             if key_value is None:
                 continue
             operations.append(UpdateOne({batch.key_field: key_value}, {"$set": doc}, upsert=True))
