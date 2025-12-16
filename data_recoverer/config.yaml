@@ -21,7 +21,7 @@ data_recoverer:
     - project_id: LD_Test
       github:
         repositories:
-          - LearningDashboard-UPC/LD_Test_Repo
+          - LearningDashboard-UPC/LD-Test-Repo
         events: [commits, issues, pull_requests]
       taiga:
         slug: learningdashboard-upc-ld-testproject-2025
