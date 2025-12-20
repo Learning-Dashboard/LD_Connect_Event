@@ -42,6 +42,29 @@ Whenever a student pushes to **GitHub**, edits a task on **Taiga**, or logs effo
 
 ---
 
+## System Modules
+
+Beyond the core ingestion pipeline, three critical modules ensure data reliability and observability:
+
+### 1. Inactivity Detector (ID)
+*   **Purpose**: Monitors data ingestion to detect service downtime or API failures.
+*   **Mechanism**: Periodically checks the last event timestamp for each project. If no events are received within a defined threshold, it flags the period as "inactive".
+*   **Location**: `inactivity_detector/`
+
+### 2. Data Recoverer (DR)
+*   **Purpose**: Ensures data completeness by backfilling missing events.
+*   **Mechanism**: Triggered automatically by the ID (or manually via API) to fetch missing data from GitHub/Taiga APIs for the identified inactive intervals.
+*   **Location**: `data_recoverer/`
+
+### 3. Metrics Recalculator (MR)
+*   **Purpose**: Ensures metrics in `LD_Eval` remain consistent with ingress data.
+*   **Mechanism**:
+    *   **Real-time**: `LD_Connect` sends a calculation trigger to `LD_Eval` immediately after ingesting an event.
+    *   **Recovery**: During data recovery, bulk recalculations are triggered to ensure historical accuracy.
+*   **Integration**: The trigger logic resides in `routes/API_publisher/`, acting as the bridge to `LD_Eval`.
+
+---
+
 ## Folder layout
 
 ```text
@@ -53,8 +76,34 @@ ldconnect/
 ├─ routes/           # Blueprint per source + HMAC helpers
 ├─ utils/            # CLIs, recovery & admin scripts
 ├─ recovery/         # Back‑fill utilities (GitHub, Taiga)
+├─ inactivity_detector/ # Service downtime & API failure monitoring
+├─ data_recoverer/      # Missing event backfilling
 └─ app.py            # Flask factory (run by Gunicorn)
 ```
+
+---
+
+## Module Configuration
+
+The **Inactivity Detector** and **Data Recoverer** are configured via YAML files in their respective directories (`inactivity_detector/config.yaml` and `data_recoverer/config.yaml`).
+
+### Inactivity Detector Configuration
+Located at `inactivity_detector/config.yaml`.
+
+*   **`heartbeat`**: Defines the system heartbeat parameters (collection name, interval) to ensure the detector itself is running.
+*   **`log_sources`**: A list of data sources to monitor. For each source, you define:
+    *   **`project_id`**: The project identifier.
+    *   **`collection`**: The MongoDB collection to watch.
+    *   **`timestamp_field`**: Field used to determine the "last active" time.
+    *   **`inactivity_threshold_minutes`**: Time without events before marking a period as inactive (e.g., `1440` for 24 hours).
+
+### Data Recoverer Configuration
+Located at `data_recoverer/config.yaml`.
+
+*   **`projects`**: Maps your internal project IDs to external repository configurations.
+    *   **`github`**: List of `repositories` (e.g., `owner/repo`) and subscribing `events` (commits, issues, PRs).
+    *   **`taiga`**: The `slug` of the Taiga project and subscribing `events`.
+*   **`startup_run`**: (Optional) specific settings if you want to trigger recovery automatically on service startup.
 
 ---
 
