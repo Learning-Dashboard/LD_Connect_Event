@@ -276,6 +276,7 @@ def parse_taiga_userstory_event(raw_payload: Dict, prj: str) -> Dict:
         milestone_modified_date= ""
         estimated_start= ""
         estimated_finish= ""
+        milestone_data = {}
     
 
     priority = raw_payload.get("data", {}).get("custom_attributes_values", {}).get("Priority", "")
