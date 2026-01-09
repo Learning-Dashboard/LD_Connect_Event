@@ -1,4 +1,5 @@
 import requests, logging, time
+from config.settings import TAIGA_AUTH_URL
 
 log = logging.getLogger(__name__)
 _TOKENS = {}          # key = (username, password) -> token
@@ -21,7 +22,7 @@ def get_taiga_token(username:str, password: str) -> str:
             "password": password,
             "type": "normal"
         }
-        r = requests.post("https://api.taiga.io/api/v1/auth", json=payload, timeout=(2, 5))
+        r = requests.post(f"{TAIGA_AUTH_URL}/auth", json=payload, timeout=(2, 5))
         r.raise_for_status()
         
         token = r.json()["auth_token"]

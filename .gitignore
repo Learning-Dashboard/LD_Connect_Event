@@ -1,2 +1,3 @@
 # .gitignore
 .env
+config_files/credentials_config.json
