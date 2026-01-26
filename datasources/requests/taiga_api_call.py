@@ -39,7 +39,8 @@ def milestone_stats(project_id: str, milestone_id: str, prj: str):
         headers = {}
         print("Using Taiga tunnel without authentication for project:", prj)
     
-    url = f"{TAIGA_API_URL}/api/v1/milestones/{milestone_id}/stats"
+    url = f"{TAIGA_API_URL}/milestones/{milestone_id}/stats"
+    print("Fetching Taiga milestone stats from URL:", url)
     r   = requests.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
     r.raise_for_status()  # Raises an exception if the request failed
     
