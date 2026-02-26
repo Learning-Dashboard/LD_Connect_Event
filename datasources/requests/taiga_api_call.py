@@ -1,8 +1,11 @@
+import logging
 import requests
 from datetime import datetime, timedelta
 from utils.taiga_token.taiga_auth import get_taiga_token
 from config.credentials_loader import resolve
 from config.settings import TAIGA_API_URL
+
+logger = logging.getLogger(__name__)
 
 _CACHE = {}                 # key = (project_id, milestone_id) -> (timestamp, stats)
 TTL    = timedelta(minutes=1) # Cache time-to-live, set to 5 minutes. Means that if the same request is made within 5 minutes, it will return the cached result instead of making a new API call.
@@ -26,21 +29,21 @@ def milestone_stats(project_id: str, milestone_id: str, prj: str):
     if "api.taiga.io" in TAIGA_API_URL:
         user = resolve(prj, "taiga_user")
         psw  = resolve(prj, "taiga_password")
-        print(user, psw)
+        logger.debug("Taiga auth user=%s", user)
         if user and psw:
             token = get_taiga_token(user, psw)
             headers = {"Authorization": f"Bearer {token}"}
-            print("Using Taiga credentials for project:", prj)
+            logger.info("Using Taiga credentials for project: %s", prj)
         else:
             headers = {}
-            print("Warning: No Taiga credentials found for project:", prj)
+            logger.warning("No Taiga credentials found for project: %s", prj)
     else:
         # Using ngrok tunnel - no authentication required
         headers = {}
-        print("Using Taiga tunnel without authentication for project:", prj)
+        logger.info("Using Taiga tunnel without authentication for project: %s", prj)
     
     url = f"{TAIGA_API_URL}/milestones/{milestone_id}/stats"
-    print("Fetching Taiga milestone stats from URL:", url)
+    logger.debug("Fetching Taiga milestone stats from URL: %s", url)
     r   = requests.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
     r.raise_for_status()  # Raises an exception if the request failed
     

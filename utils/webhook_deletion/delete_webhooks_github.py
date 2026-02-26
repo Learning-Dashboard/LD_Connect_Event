@@ -1,6 +1,9 @@
+import logging
 import pymongo
 import requests
-from config.settings import MONGO_URI, MONGO_DB, GITHUB_TOKEN, WEBHOOK_URL_GITHUB
+from config.settings import MONGO_URI, MONGO_DB, GITHUB_TOKEN, WEBHOOK_URL_GITHUB, GITHUB_API_URL
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -10,7 +13,7 @@ def list_github_hooks(owner, repo)-> list:
     Also a owner or admin token is needed to authenticate the request.
 
     """
-    url = f"https://api.github.com/repos/{owner}/{repo}/hooks"
+    url = f"{GITHUB_API_URL}/repos/{owner}/{repo}/hooks"
     headers = {
         "Accept": "application/vnd.github.v3+json",
         "Authorization": f"Bearer {GITHUB_TOKEN}"
@@ -25,7 +28,7 @@ def delete_github_hook(owner, repo, hook_id):
     This function deletes a specific webhook, we need the owner, the repository name and the id of the webhook to delete. 
     Also a owner or admin token is needed to authenticate the request.
     '''
-    url = f"https://api.github.com/repos/{owner}/{repo}/hooks/{hook_id}"
+    url = f"{GITHUB_API_URL}/repos/{owner}/{repo}/hooks/{hook_id}"
     headers = {
         "Accept": "application/vnd.github.v3+json",
         "Authorization": f"Bearer {GITHUB_TOKEN}"
@@ -57,9 +60,9 @@ def delete_all_github_webhooks(webhook_url_github):
             owner, repo = repo_full_name.split('/')            
             try:
                 hooks = list_github_hooks(owner, repo)
-                print(f"Found {len(hooks)} hooks for {owner}/{repo}")
+                logger.info("Found %d hooks for %s/%s", len(hooks), owner, repo)
             except requests.HTTPError as e:
-                print(f"Error listing hooks for {owner}/{repo}: {e}")
+                logger.error("Error listing hooks for %s/%s: %s", owner, repo, e)
                 continue
             
             for hook in hooks:
@@ -70,6 +73,6 @@ def delete_all_github_webhooks(webhook_url_github):
                     # Delete it
                     try:
                         delete_github_hook(owner, repo, hook_id)
-                        print(f"Deleted hook {hook_id} for {owner}/{repo}")
+                        logger.info("Deleted hook %s for %s/%s", hook_id, owner, repo)
                     except requests.HTTPError as e:
-                        print(f"Error deleting hook {hook_id} for {owner}/{repo}: {e}")
+                        logger.error("Error deleting hook %s for %s/%s: %s", hook_id, owner, repo, e)

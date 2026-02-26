@@ -1,5 +1,8 @@
+import logging
 import requests
 from config.settings import TAIGA_AUTH_URL
+
+logger = logging.getLogger(__name__)
 
 
 def get_token(payload:dict) -> str: 
@@ -22,9 +25,9 @@ def get_token(payload:dict) -> str:
     token = data.get("auth_token")
 
     if token:
-        print("Login successful, token retrieved:")
+        logger.info("Login successful, token retrieved.")
     else:
-        print("Login failed or token not found in the response.")
+        logger.error("Login failed or token not found in the response.")
     
     return token
 
