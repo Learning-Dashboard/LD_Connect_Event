@@ -1,7 +1,7 @@
 import logging
 import pymongo
 import requests
-from config.settings import MONGO_URI, MONGO_DB, WEBHOOK_URL_TAIGA, TAIGA_API_URL
+from config.settings import MONGO_URI, MONGO_DB, WEBHOOK_URL_TAIGA
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 #We define two functions to list and delete the webhooks using the API of github.
 #The first function lists all the webhooks created on a repository, we need the owner and the repository name. Also a owner or admin token is needed to authenticate the request.
 def list_taiga_hooks(project_id, token):
-    url = f"{TAIGA_API_URL}/webhooks?project={project_id}"
+    url = f"https://api.taiga.io/api/v1/webhooks?project={project_id}"
     headers = {
         "Authorization": f"Bearer {token}"
     }
@@ -21,7 +21,8 @@ def list_taiga_hooks(project_id, token):
 #The second function deletes a webhook, we need the owner, the repository name and the id of the webhook to delete. 
 # Also a owner or admin token is needed to authenticate the request.
 def delete_taiga_hook(hook_id, token):
-    url = f"{TAIGA_API_URL}/webhooks/{hook_id}"
+    TAIGA_API_URL = "https://api.taiga.io"
+    url = f"{TAIGA_API_URL}/api/v1/webhooks/{hook_id}"
     headers = {
         "Authorization": f"Bearer {token}"
     }

@@ -26,9 +26,8 @@ import os
 import sys
 import requests
 from typing import List, Dict
-from config.settings import TAIGA_API_URL
 
-API_BASE = TAIGA_API_URL
+API_BASE = "https://api.taiga.io/api/v1"
 
 
 

@@ -1,6 +1,5 @@
 import logging
 import requests
-from config.settings import TAIGA_AUTH_URL
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +11,7 @@ def get_token(payload:dict) -> str:
     
     """
     # Define the login endpoint URL and payload
-    login_url = f"{TAIGA_AUTH_URL}/auth"
+    login_url = "https://api.taiga.io/api/v1/auth"
 
 
     # Send the POST request to log in

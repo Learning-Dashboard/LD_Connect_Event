@@ -2,16 +2,11 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Determine the base directory (LD_Connect_Event folder)
+# Determine the base directory (adjust if needed)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from the root .env file (one level up)
-ROOT_ENV = BASE_DIR.parent / '.env'
-if ROOT_ENV.exists():
-    load_dotenv(ROOT_ENV)
-else:
-    # Fallback to local .env if root .env doesn't exist
-    load_dotenv(BASE_DIR / '.env')
+# Load environment variables from the .env file
+load_dotenv(BASE_DIR / '.env')
 
 def _require_env(name: str) -> str:
     value = os.getenv(name)
