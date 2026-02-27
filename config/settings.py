@@ -33,16 +33,16 @@ else:
     MONGO_URI = f"mongodb://{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}"
 
 # Load the GitHub token from the environment
-GITHUB_TOKEN = _require_env("GITHUB_TOKEN", "")
-GITHUB_SIGNATURE_KEY = _require_env("GITHUB_SIGNATURE_KEY", "")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+GITHUB_SIGNATURE_KEY = _require_env("GITHUB_SIGNATURE_KEY")
 GITHUB_API_URL = os.getenv("GITHUB_API_URL", "https://api.github.com")
 
 TAIGA_API_URL = _require_env("TAIGA_API_URL")
 TAIGA_AUTH_URL = os.getenv("TAIGA_AUTH_URL", TAIGA_API_URL)
-TAIGA_TOKEN = _require_env("TAIGA_TOKEN", "")
-TAIGA_SIGNATURE_KEY = _require_env("TAIGA_SIGNATURE_KEY", "")
-TAIGA_USERNAME = _require_env("TAIGA_USERNAME", "")
-TAIGA_PASSWORD= _require_env("TAIGA_PASSWORD", "")
+TAIGA_TOKEN = os.getenv("TAIGA_TOKEN", "")
+TAIGA_SIGNATURE_KEY = _require_env("TAIGA_SIGNATURE_KEY")
+TAIGA_USERNAME = _require_env("TAIGA_USERNAME")
+TAIGA_PASSWORD= _require_env("TAIGA_PASSWORD")
 
 
 # Load the webhook URLs from the environment to enable the deletion of webhooks
