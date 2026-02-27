@@ -1,20 +1,52 @@
-# Use a lightweight Python base image
-FROM python:3.9-slim
+# ── Stage 1: install dependencies in a throwaway builder ──────────────
+FROM python:3.9-slim AS builder
 
-# Create and use the /app directory
+# Prevent .pyc files and enable unbuffered stdout/stderr
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /build
+
+# Install deps into a separate prefix so we can copy only what we need
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+
+# ── Stage 2: lean runtime image ──────────────────────────────────────
+FROM python:3.9-slim AS runtime
+
+LABEL maintainer="Learning Dashboard team" \
+      description="LD Connect Event – webhook ingestion service"
+
+# Same env vars for runtime
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Copy only the installed packages from the builder stage
+COPY --from=builder /install /usr/local
+
 WORKDIR /app
 
-# Copy your requirements.txt in first so Docker can cache the pip install layer
-COPY requirements.txt .
-
-# Install your dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of your code into the container
+# Copy application code (respects .dockerignore)
 COPY . .
 
-# Expose port 5000 for your Flask/Gunicorn app to listen on
+# Create a non-root user and switch to it
+RUN addgroup --system appgroup && \
+    adduser --system --ingroup appgroup appuser && \
+    chown -R appuser:appgroup /app
+USER appuser
+
+# Expose the port Gunicorn will listen on
 EXPOSE 5000
 
-# Run gunicorn for  "app:create_app()" factory function
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:create_app()"]
+# Healthcheck so Docker / Compose can monitor the service
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
+
+# Run gunicorn with the create_app() factory
+CMD ["gunicorn", \
+     "--bind", "0.0.0.0:5000", \
+     "--timeout", "120", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "app:create_app()"]
