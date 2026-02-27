@@ -1,6 +1,5 @@
 from typing import Dict
 import re
-from config.settings import GITHUB_TOKEN
 from datasources.requests.github_api_call import fetch_commit_stats
 from config.credentials_loader import resolve
 from utils.datetime_utils import to_madrid_local
