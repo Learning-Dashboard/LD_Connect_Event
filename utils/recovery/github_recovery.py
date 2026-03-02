@@ -9,7 +9,7 @@ from database.mongo_client import get_collection
 from datasources.github_handler import parse_github_event
 from config.logger_config import setup_logging
 from routes.API_publisher.API_event_publisher import notify_eval_push
-from config.settings import GITHUB_TOKEN
+from config.settings import GITHUB_TOKEN, GITHUB_API_URL
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def get_organization_repos(org: str, headers: Dict[str, str]) -> List[str]:
     """
     Returns a list of repository names for a given GitHub organization.
     """
-    url = f"https://api.github.com/orgs/{org}/repos?per_page=100&type=all"
+    url = f"{GITHUB_API_URL}/orgs/{org}/repos?per_page=100&type=all"
     return [repo["name"] for repo in gh_paginated(url, headers)]
 
 
@@ -171,12 +171,12 @@ def collect_github(org: str,  repo: str, prj: str, events: list[str], since: Opt
                 
             
         else:
-            print(f"Event {ev} not suported.")
+            logger.warning("Event %s not supported.", ev)
 
-    for k in ("commits", "issues", "pull_requests"): # Print the counters of each event type
+    for k in ("commits", "issues", "pull_requests"): # Log the counters of each event type
         if k in events:
-            print(f" • {k.replace('_', ' '):<14} → {counters[k]:>4} documents")
-    print(f"{sum(counters.values())} documents inserted.")
+            logger.info(" • %s → %d documents", k.replace('_', ' '), counters[k])
+    logger.info("%d documents inserted.", sum(counters.values()))
 
 
 

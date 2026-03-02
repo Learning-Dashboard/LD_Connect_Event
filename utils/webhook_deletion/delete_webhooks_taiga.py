@@ -1,6 +1,9 @@
+import logging
 import pymongo
 import requests
 from config.settings import MONGO_URI, MONGO_DB, WEBHOOK_URL_TAIGA
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -49,12 +52,12 @@ def delete_all_taiga_webhooks(token, webhook_url_taiga):
         for project_id in distinct_project_ids:
             hooks = list_taiga_hooks(project_id, token)
 
-            print(f"Found {len(hooks)} hooks for project {project_id}")
+            logger.info("Found %d hooks for project %s", len(hooks), project_id)
             for hook in hooks:
-                print(hook)
+                logger.debug("Hook: %s", hook)
                 if hook["url"] == webhook_url_taiga:
                     try:
                         delete_taiga_hook(hook["id"], token)
-                        print(f"Deleted taiga hook {hook['id']} from project {project_id}")
+                        logger.info("Deleted taiga hook %s from project %s", hook['id'], project_id)
                     except requests.HTTPError as e:
-                        print(f"Error deleting taiga hook {hook['id']}: {e}")
+                        logger.error("Error deleting taiga hook %s: %s", hook['id'], e)

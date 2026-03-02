@@ -1,23 +1,8 @@
 from typing import Dict
 import re
-from config.settings import GITHUB_TOKEN
-from datetime import datetime
-from zoneinfo import ZoneInfo
 from datasources.requests.github_api_call import fetch_commit_stats
-
 from config.credentials_loader import resolve
-def to_madrid_local(ts: str) -> str:
-    """
-    Receive date in ISO-8601 ethen transforms it on to Europe/Madrid date.
-    """
-    if not ts:                           # '', None…
-        return ts
-    # The date stabdart only accepts  '+00:00', but taiga returns in 'Z' format
-    dt_utc = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    # put date to Europe/Madrid timezone
-    dt_mad_naive = dt_utc.astimezone(ZoneInfo("Europe/Madrid")).replace(tzinfo=None)
-    # format
-    return dt_mad_naive.isoformat(timespec="milliseconds")
+from utils.datetime_utils import to_madrid_local
 
 def parse_github_event(raw_payload: Dict, prj: str) -> Dict:
     """

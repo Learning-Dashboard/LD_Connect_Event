@@ -1,22 +1,8 @@
 from typing import Dict
-from datetime import datetime
-from zoneinfo import ZoneInfo
 import re
 
 from datasources.requests.taiga_api_call import  milestone_stats
-
-def to_madrid_local(ts: str) -> str:
-    """
-    Receive date in ISO-8601 ethen transforms it on to Europe/Madrid date.
-    """
-    if not ts:                           # '', None…
-        return ts
-    # The date stabdart only accepts  '+00:00', but taiga returns in 'Z' format
-    dt_utc = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    # put date to Europe/Madrid timezone
-    dt_mad_naive = dt_utc.astimezone(ZoneInfo("Europe/Madrid")).replace(tzinfo=None)
-    # format
-    return dt_mad_naive.isoformat(timespec="milliseconds")
+from utils.datetime_utils import to_madrid_local
 
 
 def parse_taiga_event(raw_payload: Dict, prj: str) -> Dict:
@@ -276,6 +262,7 @@ def parse_taiga_userstory_event(raw_payload: Dict, prj: str) -> Dict:
         milestone_modified_date= ""
         estimated_start= ""
         estimated_finish= ""
+        milestone_data = {}
     
 
     priority = raw_payload.get("data", {}).get("custom_attributes_values", {}).get("Priority", "")

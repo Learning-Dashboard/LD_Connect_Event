@@ -269,7 +269,7 @@ def main(argv: list[str] | None = None):
         coll = get_collection(f"taiga_{ns.prj}.{event}")  # Get the MongoDB collection for the event
         n    = upsert(coll, docs, key)                        # Upsert the documents
         total += n
-        print(f" • {event:<12} → {n:>4} documents")          # Print total number of documments
+        logger.info(" • %s → %d documents", event, n)
         
         #COMMUNICATION WITH LD_EVAL USING API
         logger.info(f"Notifying LD_EVAL about event: {event} for team with external_id: {ns.prj} with quality_model: {ns.quality_model}")
@@ -282,7 +282,7 @@ def main(argv: list[str] | None = None):
 
     span = "all time" if not (start or end) else \
            f"from {ns.from_date or '…'} to {ns.to_date or '…'}"
-    print(f"{total} documents inserted({span})")
+    logger.info("%d documents inserted (%s)", total, span)
 
 
 

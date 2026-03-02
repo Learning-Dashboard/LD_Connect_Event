@@ -1,16 +1,14 @@
-version: "3.9"
-
 services:
   LD_connect:
     build:
-      context: ./docker/LDCONNECT        
+      context: .       
       dockerfile: Dockerfile
     container_name: LDConnect
     environment:
       - EVAL_HOST=ld_eval
       - EVAL_PORT=5001
     env_file:
-      - ./docker/LDCONNECT/.env         
+      - .env         
     networks:
       - qrapids                 
     depends_on:
