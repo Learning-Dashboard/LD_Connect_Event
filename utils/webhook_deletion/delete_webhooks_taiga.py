@@ -4,6 +4,7 @@ import requests
 from config.settings import MONGO_URI, MONGO_DB, WEBHOOK_URL_TAIGA
 
 logger = logging.getLogger(__name__)
+REQUEST_TIMEOUT = 10
 
 
 # We define two functions to list and delete the webhooks using the API of github.
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 def list_taiga_hooks(project_id, token):
     url = f"https://api.taiga.io/api/v1/webhooks?project={project_id}"
     headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.get(url, headers=headers)
+    resp = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
     resp.raise_for_status()
     return resp.json()
 
@@ -22,7 +23,7 @@ def delete_taiga_hook(hook_id, token):
     TAIGA_API_URL = "https://api.taiga.io"
     url = f"{TAIGA_API_URL}/api/v1/webhooks/{hook_id}"
     headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.delete(url, headers=headers)
+    resp = requests.delete(url, headers=headers, timeout=REQUEST_TIMEOUT)
     resp.raise_for_status()
     return resp
 

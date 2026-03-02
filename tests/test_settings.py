@@ -1,6 +1,7 @@
 """Tests for config/settings.py"""
 
 import os, importlib, pytest
+from pathlib import Path
 from unittest.mock import patch
 
 import config.settings as settings_mod
@@ -14,7 +15,7 @@ class TestSettings:
             "TAIGA_SIGNATURE_KEY": "x",
             "TAIGA_USERNAME": "x",
             "TAIGA_PASSWORD": "x",
-            "HOME": os.environ.get("HOME", "/tmp"),
+            "HOME": os.environ.get("HOME") or str(Path.home()),
         }
         with patch.dict(os.environ, env, clear=True), patch("dotenv.load_dotenv"):
             with pytest.raises(RuntimeError, match="TAIGA_API_URL"):
@@ -88,7 +89,7 @@ class TestSettings:
             "TAIGA_SIGNATURE_KEY": "ts",
             "TAIGA_USERNAME": "u",
             "TAIGA_PASSWORD": "p",
-            "HOME": os.environ.get("HOME", "/tmp"),
+            "HOME": os.environ.get("HOME") or str(Path.home()),
         }
         with patch.dict(os.environ, env, clear=True), patch("dotenv.load_dotenv"):
             importlib.reload(settings_mod)

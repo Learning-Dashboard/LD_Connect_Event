@@ -10,6 +10,7 @@ from config.settings import (
 )
 
 logger = logging.getLogger(__name__)
+REQUEST_TIMEOUT = 10
 
 
 def list_github_hooks(owner, repo) -> list:
@@ -23,7 +24,7 @@ def list_github_hooks(owner, repo) -> list:
         "Accept": "application/vnd.github.v3+json",
         "Authorization": f"Bearer {GITHUB_TOKEN}",
     }
-    resp = requests.get(url, headers=headers)
+    resp = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
     resp.raise_for_status()
     return resp.json()
 
@@ -38,7 +39,7 @@ def delete_github_hook(owner, repo, hook_id):
         "Accept": "application/vnd.github.v3+json",
         "Authorization": f"Bearer {GITHUB_TOKEN}",
     }
-    resp = requests.delete(url, headers=headers)
+    resp = requests.delete(url, headers=headers, timeout=REQUEST_TIMEOUT)
     resp.raise_for_status()
     return resp
 

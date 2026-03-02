@@ -4,6 +4,7 @@ from routes.taiga_routes import taiga_bp
 from routes.excel_routes import excel_bp
 from config.logger_config import setup_logging
 import logging
+import os
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -22,4 +23,8 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    app.run(
+        debug=os.getenv("FLASK_DEBUG", "false").lower() == "true",
+        host="127.0.0.1",
+        port=5000,
+    )
