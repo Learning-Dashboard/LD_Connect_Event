@@ -88,8 +88,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Gitleaks (OSS)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | sh -s -- -b /usr/local/bin
+
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        run: gitleaks detect --source . --redact --verbose --exit-code 1
 
   semgrep:
     runs-on: ubuntu-latest
