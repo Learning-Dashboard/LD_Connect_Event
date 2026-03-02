@@ -103,4 +103,4 @@ def main(argv: List[str] | None = None) -> None:
 
     # 3. Resultat final
     print("\n===== RESULTAT =====")
-    print(f"Nom del projecte : {p
+    print(f"Nom del projecte : {project['name']}")
