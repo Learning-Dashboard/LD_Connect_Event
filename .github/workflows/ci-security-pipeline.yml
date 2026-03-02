@@ -88,9 +88,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Gitleaks (OSS)
+      - name: Install Gitleaks (via cli)
         run: |
-          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | sh -s -- -b /usr/local/bin
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64.tar.gz | tar xz -C /tmp
+          sudo mv /tmp/gitleaks-linux-amd64 /usr/local/bin/gitleaks
 
       - name: Run Gitleaks
         run: gitleaks detect --source . --redact --verbose --exit-code 1
