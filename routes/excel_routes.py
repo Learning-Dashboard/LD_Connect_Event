@@ -9,41 +9,41 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
-
 excel_bp = Blueprint("excel_bp", __name__)
 
 
 @excel_bp.route("/webhook/excel", methods=["POST"])
 def excel_webhook():
-    
+
     logger.info("Received Excel webhook request.")
-    
+
     # Get the raw JSON payload from the request
     raw_json = request.get_json()
     if not raw_json:
         logger.warning("Excel webhook called without JSON payload.")
         return {"error": "No JSON received"}, 400
-        
+
     # Read the query parameters from the request
-    prj   = request.args.get("prj", type=str)
-    quality_model = request.args.get("quality_model", type=str)  # otional, if not provided, we have to  use the default one
-    
+    prj = request.args.get("prj", type=str)
+    quality_model = request.args.get(
+        "quality_model", type=str
+    )  # otional, if not provided, we have to  use the default one
+
     if not prj:
         logger.warning("Missing required query param: prj")
         return jsonify({"error": "prj is required as query parameter"}), 400
 
-
     # Parse the raw JSON payload using the parse_excel_event function
-    parsed_data = parse_excel_event(raw_json, prj, quality_model)    
+    parsed_data = parse_excel_event(raw_json, prj, quality_model)
     if "error" in parsed_data:
         return parsed_data, 400
     logger.info("Excel webhook request processed successfully.")
 
-    # Create the collection name based on the project ID 
+    # Create the collection name based on the project ID
     collection_name = f"{prj}_sheets"
     event_name = "sheets_activity"
-    author_login = '' #username of the author 
-    
+    author_login = ""  # username of the author
+
     coll = get_collection(collection_name)
 
     # #COMMUNICATION WITH LD_EVAL USING API
@@ -53,13 +53,9 @@ def excel_webhook():
     # except Exception as e:
     #     logger.error(f"Error notifying LD_EVAL: {e}")
     #     return {"status": "error", "message": str(e)}, 500
-    
-    
+
     logger.info(f"Inserting Excel activity document for team {prj}")
     # Insert the parsed data into the MongoDB collection
     coll.insert_one(parsed_data)
-    
+
     return jsonify({"status": "OK"})
-
-    
-

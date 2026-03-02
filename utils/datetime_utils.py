@@ -6,7 +6,7 @@ def to_madrid_local(ts: str) -> str:
     """
     Receive date in ISO-8601 then transforms it to Europe/Madrid date.
     """
-    if not ts:                           # '', None…
+    if not ts:  # '', None…
         return ts
     # The date standard only accepts '+00:00', but taiga returns in 'Z' format
     dt_utc = datetime.fromisoformat(ts.replace("Z", "+00:00"))

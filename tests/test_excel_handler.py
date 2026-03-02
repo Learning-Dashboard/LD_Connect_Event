@@ -1,4 +1,5 @@
 """Tests for datasources/excel_handler.py"""
+
 import pytest
 from datasources.excel_handler import parse_excel_event, ACTIVITY_TYPES
 
@@ -44,7 +45,7 @@ class TestParseExcelEvent:
             "epic": "",
             "members": [],
             "memberHours": [],
-            "configRange": []
+            "configRange": [],
         }
         result = parse_excel_event(payload, "TestPrj", "qm1")
         assert result["members"] == []
@@ -64,7 +65,7 @@ class TestParseExcelEvent:
             "epic": "",
             "members": ["A", "B"],
             "memberHours": [1, 2, 3],
-            "configRange": []
+            "configRange": [],
         }
         result = parse_excel_event(payload, "P", "qm")
         assert "hours_A" in result
@@ -83,7 +84,7 @@ class TestParseExcelEvent:
             "epic": "",
             "members": [],
             "memberHours": [],
-            "configRange": [10, 20]  # Only 2 values for 8 activity types
+            "configRange": [10, 20],  # Only 2 values for 8 activity types
         }
         result = parse_excel_event(payload, "P", "qm")
         assert result["hours_Reunió_d'equip"] == 10
@@ -102,7 +103,7 @@ class TestParseExcelEvent:
             "epic": "",
             "members": [],
             "memberHours": [],
-            "configRange": [None, 5, None, None, None, None, None, None]
+            "configRange": [None, 5, None, None, None, None, None, None],
         }
         result = parse_excel_event(payload, "P", "qm")
         assert result["hours_Reunió_d'equip"] == 0
@@ -128,7 +129,7 @@ class TestParseExcelEvent:
             "epic": "",
             "members": ["  Alice  ", " ", "Bob"],
             "memberHours": [1, 2],
-            "configRange": []
+            "configRange": [],
         }
         result = parse_excel_event(payload, "P", "qm")
         assert result["members"] == ["Alice", "Bob"]

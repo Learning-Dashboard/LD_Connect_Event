@@ -8,6 +8,7 @@ import logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
+
 def create_app():
     app = Flask(__name__)
 
@@ -17,6 +18,7 @@ def create_app():
     app.register_blueprint(excel_bp)
     logger.info("Flask created and Blueprints registered successfully.")
     return app
+
 
 if __name__ == "__main__":
     app = create_app()

@@ -1,4 +1,5 @@
 """Tests for app.py"""
+
 import pytest
 
 

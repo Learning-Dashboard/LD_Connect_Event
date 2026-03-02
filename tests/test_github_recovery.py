@@ -1,4 +1,5 @@
 """Tests for utils/recovery/github_recovery.py"""
+
 import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime
@@ -7,6 +8,7 @@ from datetime import datetime
 class TestParseDt:
     def test_date_only(self):
         from utils.recovery.github_recovery import parse_dt
+
         result = parse_dt("2025-06-15")
         assert result is not None
         assert result.year == 2025
@@ -15,22 +17,26 @@ class TestParseDt:
 
     def test_datetime_with_time(self):
         from utils.recovery.github_recovery import parse_dt
+
         result = parse_dt("2025-06-15T14:30")
         assert result.hour == 14
         assert result.minute == 30
 
     def test_none_returns_none(self):
         from utils.recovery.github_recovery import parse_dt
+
         result = parse_dt(None)
         assert result is None
 
     def test_empty_string_returns_none(self):
         from utils.recovery.github_recovery import parse_dt
+
         result = parse_dt("")
         assert result is None
 
     def test_timezone_aware(self):
         from utils.recovery.github_recovery import parse_dt
+
         result = parse_dt("2025-06-15")
         assert result.tzinfo is not None
 
@@ -39,6 +45,7 @@ class TestGetOrganizationRepos:
     @patch("utils.recovery.github_recovery.gh_paginated")
     def test_returns_repo_names(self, mock_pag):
         from utils.recovery.github_recovery import get_organization_repos
+
         mock_pag.return_value = [
             {"name": "repo1"},
             {"name": "repo2"},
@@ -88,6 +95,7 @@ class TestGhPaginated:
 class TestUpsert:
     def test_upsert_empty_list(self):
         from utils.recovery.github_recovery import upsert
+
         mock_coll = MagicMock()
         result = upsert(mock_coll, [], "sha")
         assert result == 0
@@ -95,6 +103,7 @@ class TestUpsert:
 
     def test_upsert_with_docs(self):
         from utils.recovery.github_recovery import upsert
+
         mock_coll = MagicMock()
         mock_result = MagicMock()
         mock_result.matched_count = 1
@@ -115,22 +124,28 @@ class TestCollectGithub:
     def test_collect_commits(self, mock_pag, mock_parse, mock_coll, mock_notify):
         from utils.recovery.github_recovery import collect_github
 
-        mock_pag.return_value = [{
-            "sha": "abc123",
-            "url": "https://github.com/Org/repo/commit/abc123",
-            "commit": {
-                "message": "fix bug",
-                "author": {"date": "2025-06-15T10:00:00Z", "name": "Dev", "email": "d@e.com"}
-            },
-            "author": {"login": "dev"}
-        }]
+        mock_pag.return_value = [
+            {
+                "sha": "abc123",
+                "url": "https://github.com/Org/repo/commit/abc123",
+                "commit": {
+                    "message": "fix bug",
+                    "author": {
+                        "date": "2025-06-15T10:00:00Z",
+                        "name": "Dev",
+                        "email": "d@e.com",
+                    },
+                },
+                "author": {"login": "dev"},
+            }
+        ]
 
         mock_parse.return_value = {
             "event": "commit",
             "team_name": "Org",
             "repo_name": "Org/repo",
             "sender_info": {"login": "dev"},
-            "commits": [{"sha": "abc123", "message": "fix bug"}]
+            "commits": [{"sha": "abc123", "message": "fix bug"}],
         }
 
         mock_collection = MagicMock()
@@ -152,19 +167,16 @@ class TestCollectGithub:
     def test_collect_issues(self, mock_pag, mock_parse, mock_coll, mock_notify):
         from utils.recovery.github_recovery import collect_github
 
-        mock_pag.return_value = [{
-            "number": 1,
-            "state": "open",
-            "user": {"login": "dev"},
-            "title": "Bug"
-        }]
+        mock_pag.return_value = [
+            {"number": 1, "state": "open", "user": {"login": "dev"}, "title": "Bug"}
+        ]
 
         mock_parse.return_value = {
             "event": "issue",
             "team_name": "Org",
             "repo_name": "Org/repo",
             "sender_info": {"login": "dev"},
-            "issue": {"number": 1}
+            "issue": {"number": 1},
         }
 
         mock_collection = MagicMock()
@@ -184,18 +196,14 @@ class TestCollectGithub:
     def test_collect_pull_requests(self, mock_pag, mock_parse, mock_coll, mock_notify):
         from utils.recovery.github_recovery import collect_github
 
-        mock_pag.return_value = [{
-            "number": 5,
-            "user": {"login": "dev"},
-            "title": "PR"
-        }]
+        mock_pag.return_value = [{"number": 5, "user": {"login": "dev"}, "title": "PR"}]
 
         mock_parse.return_value = {
             "event": "pull_request",
             "team_name": "Org",
             "repo_name": "Org/repo",
             "sender_info": {"login": "dev"},
-            "pr_number": 5
+            "pr_number": 5,
         }
 
         mock_collection = MagicMock()
@@ -205,7 +213,9 @@ class TestCollectGithub:
         mock_collection.bulk_write.return_value = mock_result
         mock_coll.return_value = mock_collection
 
-        collect_github("Org", "repo", "TestPrj", ["pull_requests"], None, None, "default")
+        collect_github(
+            "Org", "repo", "TestPrj", ["pull_requests"], None, None, "default"
+        )
         mock_coll.assert_called_with("github_TestPrj.pull_requests")
 
     @patch("utils.recovery.github_recovery.notify_eval_push")
@@ -213,5 +223,6 @@ class TestCollectGithub:
     @patch("utils.recovery.github_recovery.gh_paginated")
     def test_unsupported_event_logged(self, mock_pag, mock_coll, mock_notify):
         from utils.recovery.github_recovery import collect_github
+
         # Should not crash on unsupported event
         collect_github("Org", "repo", "P", ["unsupported"], None, None, "default")

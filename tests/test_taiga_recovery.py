@@ -1,4 +1,5 @@
 """Tests for utils/recovery/taiga_recovery.py"""
+
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -6,6 +7,7 @@ from unittest.mock import patch, MagicMock
 class TestParseDt:
     def test_date_only(self):
         from utils.recovery.taiga_recovery import parse_dt
+
         result = parse_dt("2025-06-15")
         assert result.year == 2025
         assert result.month == 6
@@ -13,6 +15,7 @@ class TestParseDt:
 
     def test_datetime_with_time(self):
         from utils.recovery.taiga_recovery import parse_dt
+
         result = parse_dt("2025-06-15T14:30")
         assert result.hour == 14
         assert result.minute == 30
@@ -22,6 +25,7 @@ class TestGetProjectIdBySlug:
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_success(self, mock_get):
         from utils.recovery.taiga_recovery import get_project_id_by_slug
+
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"id": 42}
@@ -33,6 +37,7 @@ class TestGetProjectIdBySlug:
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_private_project_exits(self, mock_get):
         from utils.recovery.taiga_recovery import get_project_id_by_slug
+
         mock_resp = MagicMock()
         mock_resp.status_code = 401
         mock_get.return_value = mock_resp
@@ -43,6 +48,7 @@ class TestGetProjectIdBySlug:
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_not_found_exits(self, mock_get):
         from utils.recovery.taiga_recovery import get_project_id_by_slug
+
         mock_resp = MagicMock()
         mock_resp.status_code = 404
         mock_get.return_value = mock_resp
@@ -54,6 +60,7 @@ class TestGetProjectIdBySlug:
     def test_other_error_raises(self, mock_get):
         import requests
         from utils.recovery.taiga_recovery import get_project_id_by_slug
+
         mock_resp = MagicMock()
         mock_resp.status_code = 500
         mock_resp.raise_for_status.side_effect = requests.HTTPError("500")
@@ -67,6 +74,7 @@ class TestGetUsernameId:
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_returns_id(self, mock_get):
         from utils.recovery.taiga_recovery import get_username_id
+
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"id": 123}
         mock_resp.raise_for_status = MagicMock()
@@ -81,10 +89,11 @@ class TestGetProjectIdByUsernameId:
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_project_found(self, mock_get, mock_uid):
         from utils.recovery.taiga_recovery import get_project_id_by_username_id
+
         mock_resp = MagicMock()
         mock_resp.json.return_value = [
             {"name": "Other Project", "id": 10},
-            {"name": "My Project", "id": 42}
+            {"name": "My Project", "id": 42},
         ]
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
@@ -96,6 +105,7 @@ class TestGetProjectIdByUsernameId:
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_project_not_found_exits(self, mock_get, mock_uid):
         from utils.recovery.taiga_recovery import get_project_id_by_username_id
+
         mock_resp = MagicMock()
         mock_resp.json.return_value = []
         mock_resp.raise_for_status = MagicMock()
@@ -109,6 +119,7 @@ class TestFetchEntities:
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_fetch_tasks(self, mock_get):
         from utils.recovery.taiga_recovery import fetch_entities
+
         mock_resp = MagicMock()
         mock_resp.json.return_value = [{"id": 1}, {"id": 2}]
         mock_resp.raise_for_status = MagicMock()
@@ -119,12 +130,14 @@ class TestFetchEntities:
 
     def test_unsupported_entity_raises(self):
         from utils.recovery.taiga_recovery import fetch_entities
+
         with pytest.raises(ValueError, match="Not supported"):
             fetch_entities("wiki", 42)
 
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_fetch_with_date_filters(self, mock_get):
         from utils.recovery.taiga_recovery import fetch_entities, parse_dt
+
         mock_resp = MagicMock()
         mock_resp.json.return_value = []
         mock_resp.raise_for_status = MagicMock()
@@ -142,11 +155,13 @@ class TestFetchEntities:
 class TestUpsert:
     def test_empty(self):
         from utils.recovery.taiga_recovery import upsert
+
         result = upsert(MagicMock(), [], "id")
         assert result == 0
 
     def test_with_docs(self):
         from utils.recovery.taiga_recovery import upsert
+
         mock_coll = MagicMock()
         mock_result = MagicMock()
         mock_result.matched_count = 2
@@ -160,6 +175,7 @@ class TestUpsert:
 class TestConverters:
     def test_task_from_api(self):
         from utils.recovery.taiga_recovery import task_from_api
+
         j = {
             "id": 100,
             "subject": "Task A",
@@ -174,7 +190,7 @@ class TestConverters:
             "status_extra_info": {"is_closed": False, "name": "New"},
             "assigned_to_extra_info": {"username": "dev1"},
             "custom_attributes_values": {"sp": 5},
-            "project_extra_info": {"name": "TestProject", "id": 1}
+            "project_extra_info": {"name": "TestProject", "id": 1},
         }
         doc = task_from_api(j, "TestPrj")
         assert doc["task_id"] == 100
@@ -185,6 +201,7 @@ class TestConverters:
 
     def test_issue_from_api(self):
         from utils.recovery.taiga_recovery import issue_from_api
+
         j = {
             "id": 200,
             "subject": "Bug",
@@ -198,7 +215,7 @@ class TestConverters:
             "severity_extra_info": {"name": "Normal"},
             "type_extra_info": {"name": "Bug"},
             "assigned_to_extra_info": None,
-            "project_extra_info": {"name": "TestProject"}
+            "project_extra_info": {"name": "TestProject"},
         }
         doc = issue_from_api(j, "TestPrj")
         assert doc["issue_id"] == 200
@@ -207,13 +224,14 @@ class TestConverters:
 
     def test_epic_from_api(self):
         from utils.recovery.taiga_recovery import epic_from_api
+
         j = {
             "id": 300,
             "subject": "Epic",
             "created_date": "2025-06-01",
             "modified_date": "2025-06-10",
             "status_extra_info": {"is_closed": False, "name": "New"},
-            "project_extra_info": {"name": "TestProject", "id": 1}
+            "project_extra_info": {"name": "TestProject", "id": 1},
         }
         doc = epic_from_api(j, "TestPrj")
         assert doc["epic_id"] == 300
@@ -221,6 +239,7 @@ class TestConverters:
 
     def test_userstory_from_api(self):
         from utils.recovery.taiga_recovery import userstory_from_api
+
         j = {
             "id": 400,
             "subject": "User login",
@@ -229,14 +248,17 @@ class TestConverters:
             "modified_date": "2025-06-10",
             "status_extra_info": {"is_closed": False, "name": "New"},
             "milestone": 10,
-            "milestone_extra_info": {"name": "Sprint 1", "closed": False,
-                                      "created_date": "2025-05-01",
-                                      "modified_date": "2025-06-01",
-                                      "estimated_start": "2025-05-01",
-                                      "estimated_finish": "2025-06-01"},
+            "milestone_extra_info": {
+                "name": "Sprint 1",
+                "closed": False,
+                "created_date": "2025-05-01",
+                "modified_date": "2025-06-01",
+                "estimated_start": "2025-05-01",
+                "estimated_finish": "2025-06-01",
+            },
             "custom_attributes_values": {"Priority": "High"},
             "points": [{"value": 3}, {"value": 5}],
-            "project_extra_info": {"name": "TestProject"}
+            "project_extra_info": {"name": "TestProject"},
         }
         doc = userstory_from_api(j, "TestPrj")
         assert doc["userstory_id"] == 400
@@ -246,6 +268,7 @@ class TestConverters:
 
     def test_userstory_no_pattern(self):
         from utils.recovery.taiga_recovery import userstory_from_api
+
         j = {
             "id": 401,
             "subject": "S",
@@ -257,7 +280,7 @@ class TestConverters:
             "milestone_extra_info": None,
             "custom_attributes_values": None,
             "points": "",
-            "project_extra_info": {"name": "P"}
+            "project_extra_info": {"name": "P"},
         }
         doc = userstory_from_api(j, "P")
         assert doc["pattern"] is False
@@ -271,8 +294,11 @@ class TestMain:
     @patch("utils.recovery.taiga_recovery.get_collection")
     @patch("utils.recovery.taiga_recovery.fetch_entities", return_value=[])
     @patch("utils.recovery.taiga_recovery.get_project_id_by_slug", return_value=42)
-    def test_main_runs(self, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify):
+    def test_main_runs(
+        self, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify
+    ):
         from utils.recovery.taiga_recovery import main
+
         main(["--slug", "test-slug", "--prj", "TestPrj", "--events", "task"])
         mock_slug.assert_called_once_with("test-slug")
         mock_fetch.assert_called_once()
@@ -282,7 +308,21 @@ class TestMain:
     @patch("utils.recovery.taiga_recovery.get_collection")
     @patch("utils.recovery.taiga_recovery.fetch_entities", return_value=[])
     @patch("utils.recovery.taiga_recovery.get_project_id_by_slug", return_value=42)
-    def test_main_with_dates(self, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify):
+    def test_main_with_dates(
+        self, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify
+    ):
         from utils.recovery.taiga_recovery import main
-        main(["--slug", "s", "--prj", "P", "--from-date", "2025-01-01", "--to-date", "2025-12-31"])
+
+        main(
+            [
+                "--slug",
+                "s",
+                "--prj",
+                "P",
+                "--from-date",
+                "2025-01-01",
+                "--to-date",
+                "2025-12-31",
+            ]
+        )
         mock_fetch.assert_called()

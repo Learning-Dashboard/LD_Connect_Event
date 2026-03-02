@@ -1,4 +1,5 @@
 """Tests for config/settings.py"""
+
 import os, importlib, pytest
 from unittest.mock import patch
 
@@ -15,8 +16,7 @@ class TestSettings:
             "TAIGA_PASSWORD": "x",
             "HOME": os.environ.get("HOME", "/tmp"),
         }
-        with patch.dict(os.environ, env, clear=True), \
-             patch("dotenv.load_dotenv"):
+        with patch.dict(os.environ, env, clear=True), patch("dotenv.load_dotenv"):
             with pytest.raises(RuntimeError, match="TAIGA_API_URL"):
                 importlib.reload(settings_mod)
         # Restore module to working state
@@ -38,6 +38,7 @@ class TestSettings:
         with patch.dict(os.environ, env, clear=True):
             import importlib
             import config.settings as settings_mod
+
             importlib.reload(settings_mod)
             assert settings_mod.MONGO_URI == "mongodb://myhost:27017/mydb"
 
@@ -58,6 +59,7 @@ class TestSettings:
         with patch.dict(os.environ, env, clear=True):
             import importlib
             import config.settings as settings_mod
+
             importlib.reload(settings_mod)
             assert "admin:secret" in settings_mod.MONGO_URI
             assert "authSource=authdb" in settings_mod.MONGO_URI
@@ -73,6 +75,7 @@ class TestSettings:
         with patch.dict(os.environ, env, clear=True):
             import importlib
             import config.settings as settings_mod
+
             importlib.reload(settings_mod)
             assert settings_mod.MONGO_HOST == "mongodb"
             assert settings_mod.MONGO_PORT == "27017"
@@ -87,7 +90,6 @@ class TestSettings:
             "TAIGA_PASSWORD": "p",
             "HOME": os.environ.get("HOME", "/tmp"),
         }
-        with patch.dict(os.environ, env, clear=True), \
-             patch("dotenv.load_dotenv"):
+        with patch.dict(os.environ, env, clear=True), patch("dotenv.load_dotenv"):
             importlib.reload(settings_mod)
             assert settings_mod.TAIGA_AUTH_URL == "https://custom.taiga.io/api/v1"

@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 
+
 def verify_taiga_signature(request, secret):
     """
     Validates the Taiga HMAC-SHA1 signature on the incoming request.

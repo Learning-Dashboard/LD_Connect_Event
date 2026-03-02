@@ -1,4 +1,5 @@
 """Tests for utils/webhook_deletion/delete_webhooks_taiga.py"""
+
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -35,7 +36,9 @@ class TestDeleteAllTaigaWebhooks:
     @patch("utils.webhook_deletion.delete_webhooks_taiga.list_taiga_hooks")
     @patch("utils.webhook_deletion.delete_webhooks_taiga.pymongo.MongoClient")
     def test_deletes_matching_webhooks(self, mock_mongo, mock_list, mock_delete):
-        from utils.webhook_deletion.delete_webhooks_taiga import delete_all_taiga_webhooks
+        from utils.webhook_deletion.delete_webhooks_taiga import (
+            delete_all_taiga_webhooks,
+        )
 
         mock_db = MagicMock()
         mock_db.list_collection_names.return_value = ["taiga_prj.epics", "other"]
@@ -55,7 +58,9 @@ class TestDeleteAllTaigaWebhooks:
     @patch("utils.webhook_deletion.delete_webhooks_taiga.pymongo.MongoClient")
     def test_delete_error_continues(self, mock_mongo, mock_list, mock_delete):
         import requests
-        from utils.webhook_deletion.delete_webhooks_taiga import delete_all_taiga_webhooks
+        from utils.webhook_deletion.delete_webhooks_taiga import (
+            delete_all_taiga_webhooks,
+        )
 
         mock_db = MagicMock()
         mock_db.list_collection_names.return_value = ["taiga_prj.epics"]

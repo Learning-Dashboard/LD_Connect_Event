@@ -1,4 +1,5 @@
 """Tests for routes/verify_signature/verify_signature_taiga.py"""
+
 import hashlib, hmac, pytest
 from unittest.mock import MagicMock
 from routes.verify_signature.verify_signature_taiga import verify_taiga_signature

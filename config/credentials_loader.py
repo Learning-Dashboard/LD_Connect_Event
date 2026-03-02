@@ -1,7 +1,7 @@
 import json, os
 from typing import Optional
-CONFIG_FILE = os.getenv("CREDENTIALS_FILE",
-                        "config_files/credentials_config.json")
+
+CONFIG_FILE = os.getenv("CREDENTIALS_FILE", "config_files/credentials_config.json")
 
 
 def load():
@@ -16,9 +16,7 @@ def resolve(prj: str, field: str) -> Optional[str]:
     """
     cfg = load()
     for course, props in cfg.items():
-        if prj in props["teams"]:            
+        if prj in props["teams"]:
 
             return props.get(field)
     raise KeyError(f"Project {prj!r} not found in {CONFIG_FILE}")
-
-
