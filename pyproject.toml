@@ -7,12 +7,7 @@ addopts = "-v --tb=short"
 
 [tool.coverage.run]
 source = [
-    "app",
-    "config",
-    "database",
-    "datasources",
-    "routes",
-    "utils",
+    ".",
 ]
 omit = [
     "env/*",

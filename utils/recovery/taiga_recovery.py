@@ -10,7 +10,7 @@ from utils.taiga_token.get_taiga_token import get_token
 from routes.API_publisher.API_event_publisher import notify_eval_push
 from config.logger_config import setup_logging
 
-from config.settings import TAIGA_USERNAME, TAIGA_PASSWORD
+from config.settings import TAIGA_USERNAME, TAIGA_PASSWORD, TAIGA_API_URL
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -31,14 +31,14 @@ def get_username_id(token: str) -> int:
     With this ID we canfind the projects that the user is a member of.
     """
     h = {"Authorization": f"Bearer {token}"}
-    r = requests.get(f"https://api.taiga.io/api/v1/users/me", headers=h, timeout=10)
+    r = requests.get(f"{TAIGA_API_URL}/users/me", headers=h, timeout=10)
     r.raise_for_status()
     return r.json()["id"]
 
 
 def get_project_id_by_slug(slug: str) -> int:
     """Resolve Taiga project ID from slug without authentication (public projects)."""
-    url = "https://api.taiga.io/api/v1/projects/by_slug"
+    url = f"{TAIGA_API_URL}/projects/by_slug"
     r = requests.get(url, params={"slug": slug}, timeout=10)
     if r.status_code == 200:
         return r.json()["id"]
@@ -60,7 +60,7 @@ def get_project_id_by_username_id(project_name: str, token: str) -> int:
     h = {"Authorization": f"Bearer {token}"}
     uid = get_username_id(token)
     r = requests.get(
-        f"https://api.taiga.io/api/v1/projects",
+        f"{TAIGA_API_URL}/projects",
         headers=h,
         params={"member": uid},
         timeout=10,
