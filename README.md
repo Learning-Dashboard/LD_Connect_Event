@@ -142,7 +142,6 @@ All endpoints return **`200 OK`** immediately; heavy work continues asynchronou
 
 ```bash
 pytest              # unit tests
-locust -f tests/    # stress tests (replay real‑world payloads)
 ```
 
 ---
