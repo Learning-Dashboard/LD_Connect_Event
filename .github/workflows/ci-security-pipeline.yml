@@ -96,7 +96,7 @@ jobs:
           sudo chmod +x /usr/local/bin/gitleaks
 
       - name: Run Gitleaks
-        run: gitleaks detect --source . --redact --verbose --baseline-path gitleaks-baseline.json --exit-code 1
+        run: gitleaks detect --source . --redact --verbose --baseline-path .gitleaks-baseline.json --exit-code 1
 
   semgrep:
     runs-on: ubuntu-latest
