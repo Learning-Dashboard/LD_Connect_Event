@@ -1,6 +1,5 @@
 """Tests for datasources/requests/github_api_call.py"""
 
-import pytest
 from unittest.mock import patch, MagicMock
 
 
@@ -50,7 +49,6 @@ class TestFetchCommitStats:
     def test_uses_correct_url(self, mock_get, mock_resolve):
         from datasources.requests.github_api_call import (
             fetch_commit_stats,
-            GITHUB_API_URL,
         )
 
         mock_resp = MagicMock()

@@ -1,6 +1,5 @@
 """Tests for utils/webhook_deletion/delete_webhooks_taiga.py"""
 
-import pytest
 from unittest.mock import patch, MagicMock
 
 

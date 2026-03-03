@@ -5,7 +5,6 @@ from config.settings import (
     MONGO_URI,
     MONGO_DB,
     GITHUB_TOKEN,
-    WEBHOOK_URL_GITHUB,
     GITHUB_API_URL,
 )
 

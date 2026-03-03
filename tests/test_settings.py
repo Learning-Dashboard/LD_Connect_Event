@@ -1,6 +1,8 @@
 """Tests for config/settings.py"""
 
-import os, importlib, pytest
+import os
+import importlib
+import pytest
 from pathlib import Path
 from unittest.mock import patch
 

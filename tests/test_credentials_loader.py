@@ -1,6 +1,7 @@
 """Tests for config/credentials_loader.py"""
 
-import json, os, pytest
+import json
+import pytest
 from unittest.mock import patch
 
 

@@ -1,8 +1,6 @@
 """Tests for datasources/requests/taiga_api_call.py"""
 
-import pytest
 from unittest.mock import patch, MagicMock
-from datetime import datetime, timedelta
 
 
 class TestMilestoneStats:

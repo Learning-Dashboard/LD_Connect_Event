@@ -1,7 +1,6 @@
 """Tests for datasources/github_handler.py"""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 class TestParseGithubEvent:

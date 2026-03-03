@@ -1,6 +1,5 @@
 """Tests for routes/API_publisher/API_event_publisher.py"""
 
-import pytest
 from unittest.mock import patch, MagicMock
 
 

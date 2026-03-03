@@ -1,7 +1,7 @@
 import logging
 import pymongo
 import requests
-from config.settings import MONGO_URI, MONGO_DB, WEBHOOK_URL_TAIGA
+from config.settings import MONGO_URI, MONGO_DB
 
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 10

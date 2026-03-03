@@ -1,4 +1,5 @@
-import argparse, requests
+import argparse
+import requests
 from typing import Dict, Iterable, Optional, List
 from datetime import datetime, timezone
 from pymongo import UpdateOne

@@ -1,8 +1,6 @@
 """Tests for utils/recovery/github_recovery.py"""
 
-import pytest
 from unittest.mock import patch, MagicMock
-from datetime import datetime
 
 
 class TestParseDt:

@@ -1,4 +1,5 @@
-import json, os
+import json
+import os
 from typing import Optional
 
 CONFIG_FILE = os.getenv("CREDENTIALS_FILE", "config_files/credentials_config.json")

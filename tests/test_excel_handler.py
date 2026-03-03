@@ -1,6 +1,5 @@
 """Tests for datasources/excel_handler.py"""
 
-import pytest
 from datasources.excel_handler import parse_excel_event, ACTIVITY_TYPES
 
 

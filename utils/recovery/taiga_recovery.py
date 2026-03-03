@@ -1,4 +1,6 @@
-import argparse, re, requests
+import argparse
+import re
+import requests
 from pymongo import UpdateOne
 from datetime import datetime, timezone
 from typing import Optional, Dict, List
@@ -6,11 +8,10 @@ from dateutil import tz, parser as dtparser  # pip install python-dateutil
 import logging
 
 from database.mongo_client import get_collection
-from utils.taiga_token.get_taiga_token import get_token
 from routes.API_publisher.API_event_publisher import notify_eval_push
 from config.logger_config import setup_logging
 
-from config.settings import TAIGA_USERNAME, TAIGA_PASSWORD, TAIGA_API_URL
+from config.settings import TAIGA_API_URL
 
 setup_logging()
 logger = logging.getLogger(__name__)

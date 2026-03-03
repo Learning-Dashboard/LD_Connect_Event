@@ -1,4 +1,3 @@
-from datetime import datetime
 
 
 # List of activity types extracted from the Excel sheet

@@ -2,7 +2,9 @@
 Shared pytest fixtures for the LD_Connect_Event test suite.
 """
 
-import os, json, pytest
+import os
+import json
+import pytest
 
 # ── Set required env vars BEFORE any application module is imported ──────────
 os.environ.setdefault("GITHUB_SIGNATURE_KEY", "test-github-secret")

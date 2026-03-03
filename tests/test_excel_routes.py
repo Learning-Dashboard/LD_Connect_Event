@@ -1,6 +1,6 @@
 """Tests for routes/excel_routes.py"""
 
-import json, pytest
+import json
 from unittest.mock import patch, MagicMock
 
 

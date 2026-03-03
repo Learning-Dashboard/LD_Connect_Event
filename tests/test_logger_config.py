@@ -1,6 +1,7 @@
 """Tests for config/logger_config.py"""
 
-import logging, os, pytest
+import logging
+import os
 from unittest.mock import patch
 
 

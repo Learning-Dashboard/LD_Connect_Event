@@ -1,4 +1,6 @@
-import requests, logging, time
+import requests
+import logging
+import time
 
 log = logging.getLogger(__name__)
 _TOKENS = {}  # key = (username, password) -> token

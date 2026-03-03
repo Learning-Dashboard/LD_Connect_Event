@@ -1,6 +1,5 @@
 """Tests for database/mongo_client.py"""
 
-import pytest
 from unittest.mock import patch, MagicMock
 
 
