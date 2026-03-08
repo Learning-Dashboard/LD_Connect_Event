@@ -1,8 +1,8 @@
 services:
-  LD_connect:
+  ld_connect:
     build:
       context: .       
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     container_name: LDConnect
     environment:
       - EVAL_HOST=ld_eval
@@ -10,10 +10,10 @@ services:
     env_file:
       - .env         
     networks:
-      - qrapids                 
+      - qrapids         
     depends_on:
-      mongodb:                   
-        condition: service_started
+    mongodb:                   
+        condition: service_started        
     ports:
       - "127.0.0.1:5000:5000"    
 
