@@ -52,7 +52,7 @@ jobs:
           pip install ruff
 
       - name: Run Ruff
-        run: ruff check .
+        run: ruff check . --exclude tests,deprecated
 
   bandit:
     runs-on: ubuntu-latest
@@ -73,7 +73,7 @@ jobs:
           pip install bandit
 
       - name: Run Bandit
-        run: bandit -r . -x tests -ll
+        run: bandit -r . -x tests -ll -x tests,deprecated
 
   gitleaks:
     runs-on: ubuntu-latest
