@@ -1,11 +1,11 @@
 # LD Connect – Event Ingestion Service
 
-**LD Connect** is the entry point of the Learning Dashboard pipeline.  
+**LD Connect** is the entry point of the Learning Dashboard pipeline.
 Whenever a student pushes to **GitHub**, edits a task on **Taiga**, or logs effort in **Google Sheets**, the event first reaches this service. LD Connect
 
-1. **Authenticates** the webhook (HMAC signatures)  
-2. **Normalises** the payload to a common schema  
-3. **Persists** it in MongoDB (idempotent upserts)  
+1. **Authenticates** the webhook (HMAC signatures)
+2. **Normalises** the payload to a common schema
+3. **Persists** it in MongoDB (idempotent upserts)
 4. **Notifies** LD Eval so metrics are recalculated in near real‑time
 
 ---
@@ -27,10 +27,10 @@ Whenever a student pushes to **GitHub**, edits a task on **Taiga**, or logs effo
 ```text
 ┌──────────────┐   Webhook   ┌──────────────┐
 │  GitHub      │───POST────▶ │              │
-└──────────────┘             │              │ 
-┌──────────────┐             │              │ 
+└──────────────┘             │              │
+┌──────────────┐             │              │
 │  Taiga       │───POST────▶ │  LD Connect  │──┐  POST /api/event
-└──────────────┘             │              │  │ 
+└──────────────┘             │              │  │
 ┌──────────────┐             │              │  │
 │  GoogleSheet │───POST────▶│              │  │  (notify)
 └──────────────┘             └──────────────┘  │
@@ -90,8 +90,8 @@ curl -X POST "http://127.0.0.1:5000/webhook/github?ping=1"
 docker compose up -d --build ld_connect
 ```
 
-* Exposes the service on port **5000** inside the container  
-* Behind Nginx / Traefik, route  
+* Exposes the service on port **5000** inside the container
+* Behind Nginx / Traefik, route
   `https://<your-domain>/webhook/{github|taiga|excel}` → `ld_connect:5000`
 
 ---
@@ -115,12 +115,12 @@ Store them in `.env` (already referenced in `docker-compose.yml`).
 
 ### `POST /webhook/github`
 
-Receives any GitHub event subscribed in the repo webhook.  
+Receives any GitHub event subscribed in the repo webhook.
 Requires headers `X-Hub-Signature` **and** `X-Hub-Signature-256`.
 
 ### `POST /webhook/taiga`
 
-Receives Taiga events.  
+Receives Taiga events.
 Requires header `X-Taiga-Webhook-Signature`.
 
 ### `POST /webhook/excel`
@@ -143,6 +143,42 @@ All endpoints return **`200 OK`** immediately; heavy work continues asynchronou
 ```bash
 pytest              # unit tests
 ```
+
+If you just cloned the repository, set up `pre-commit` once before you start coding.
+It will automatically run checks every time you commit, so common issues are caught early.
+
+### First-time setup (after cloning)
+
+```bash
+# 1) create and activate a virtual environment (if you did not do it yet)
+python -m venv .venv
+source .venv/bin/activate
+
+# 2) install project dependencies
+pip install -r requirements.txt
+
+# 3) install pre-commit in your environment
+pip install pre-commit
+
+# 4) install git hooks for this repository (one-time)
+pre-commit install
+
+# 5) optional: run checks on all files now
+pre-commit run --all-files
+```
+
+### Why this helps
+
+- `ruff` catches Python style/quality issues and can auto-fix many of them.
+- `gitleaks` helps prevent committing secrets (tokens, passwords, keys).
+- Because hooks run before each commit, problems are found locally instead of failing later in CI.
+
+Configured hooks:
+
+| Hook | Purpose |
+| --- | --- |
+| `ruff` | Python linting (with autofix) |
+| `gitleaks` | Detect hardcoded secrets |
 
 ---
 
