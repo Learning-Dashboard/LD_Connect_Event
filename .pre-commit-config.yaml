@@ -15,4 +15,4 @@ repos:
     rev: v8.30.0
     hooks:
       - id: gitleaks
-        args: ["--redact", "--verbose", "--baseline-path", ".gitleaks-baseline.json", "--exit-code", "1"]
+        args: ["--redact=0", "--baseline-path", ".gitleaks-baseline.json", "--exit-code", "1"]
