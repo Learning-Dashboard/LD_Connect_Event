@@ -53,7 +53,7 @@ def parse_taiga_issue_event(raw_payload: Dict, prj: str) -> Dict:
     )
     assigned_by = raw_payload.get("by", {}).get("username", "")
     # There are cases where the assigned_to field is empty, and if we request it aniways it will throw an error, so we need to check if it exists
-    if raw_payload.get("data", {}).get("assigned_to", {}) != None:
+    if raw_payload.get("data", {}).get("assigned_to", {}) is not None:
         assigned_to = (
             raw_payload.get("data", {}).get("assigned_to", {}).get("username", "")
         )
@@ -180,7 +180,7 @@ def parse_taiga_task_event(raw_payload: Dict, prj: str) -> Dict:
         custom_attributes = {}
 
     # There are cases where the assigned_to field is empty, and if we request it aniways it will throw an error, so we need to check if it exists
-    if raw_payload.get("data", {}).get("assigned_to", {}) != None:
+    if raw_payload.get("data", {}).get("assigned_to", {}) is not None:
         assigned_to = (
             raw_payload.get("data", {}).get("assigned_to", {}).get("username", "")
         )
@@ -254,7 +254,7 @@ def parse_taiga_userstory_event(raw_payload: Dict, prj: str) -> Dict:
         pattern_in_description = False
 
     # If the userstory has a milestone associated while created, we will get the values, if not, we will set them to None
-    if raw_payload.get("data", {}).get("milestone", {}) != None:
+    if raw_payload.get("data", {}).get("milestone", {}) is not None:
 
         milestone_id = raw_payload.get("data", {}).get("milestone", {}).get("id", "")
         milestone_name = (

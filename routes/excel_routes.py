@@ -41,7 +41,8 @@ def excel_webhook():
     # Create the collection name based on the project ID
     collection_name = f"{prj}_sheets"
     event_name = "sheets_activity"
-    author_login = ""  # username of the author
+    # author_login = ""  # username of the author
+    logger.info(f"Processing Excel event: {event_name} for team: {prj} with quality_model: {quality_model}")
 
     coll = get_collection(collection_name)
 

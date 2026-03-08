@@ -1,7 +1,6 @@
 """Tests for app.py"""
 
 
-
 class TestCreateApp:
     def test_app_created(self, flask_app):
         assert flask_app is not None

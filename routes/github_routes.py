@@ -57,6 +57,7 @@ def github_webhook():
     team_name = parsed_data[
         "team_name"
     ]  # We wont use this, we will use the external_id instead as its a CENTRALIZED ID
+    logger.info(f"Processing Github event: {parsed_data['event']} for team: {team_name} (external_id: {prj})")
     event_label = parsed_data["event"]  # This is either "commit" or "issue"
     author_login = parsed_data["sender_info"][
         "login"

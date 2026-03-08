@@ -39,6 +39,7 @@ def taiga_webhook():
     action_type = raw_payload.get("action", "")
     id = raw_payload.get("data", {}).get("id", "")
     team_name = raw_payload.get("data", {}).get("project", {}).get("name", "")
+    logger.info(f"Processing Taiga event: {event_type} with action: {action_type} for team: {team_name} (external_id: {prj})")
 
     # Decide the Mongo collection name to write to, depending on the event type
     if event_type in ["userstory", "relateduserstory"]:
@@ -98,8 +99,9 @@ def taiga_webhook():
 
         logger.info(f"Upserting task with ID: {task_id}")
         # Upsert instead of insert
-        parsed_data["prj"] = prj
-        result = coll.update_one(
+        result = parsed_data["prj"] = prj
+        logger.info(f"Upserting task with ID: {task_id} for team {prj} in collection {collection_name} result: {result}")
+        coll.update_one(
             {"task_id": task_id}, {"$set": parsed_data}, upsert=True
         )
         logger.info(f"Inserting in MongoDB Taiga task for team {prj}")
@@ -114,7 +116,7 @@ def taiga_webhook():
         logger.info(f"Upserting epic with ID: {epic_id}")
         # Upsert instead of insert
         parsed_data["prj"] = prj
-        result = coll.update_one(
+        coll.update_one(
             {"epic_id": epic_id}, {"$set": parsed_data}, upsert=True
         )
         logger.info(f"Inserting in MongoDB Taiga epic for team {prj}")
@@ -129,7 +131,7 @@ def taiga_webhook():
         logger.info(f"Upserting issue with ID: {issue_id}")
         parsed_data["prj"] = prj
         # Upsert instead of insert
-        result = coll.update_one(
+        coll.update_one(
             {"issue_id": issue_id}, {"$set": parsed_data}, upsert=True
         )
         logger.info(f"Inserting in MongoDB Taiga issue for team {prj}")
@@ -137,7 +139,7 @@ def taiga_webhook():
     else:
         # If the event is not one of the above, we will insert it as a new document
         parsed_data["prj"] = prj
-        inserted_id = coll.insert_one(parsed_data).inserted_id
+        coll.insert_one(parsed_data)
 
     # COMMUNICATION WITH LD_EVAL USING API
     logger.info(

@@ -1,5 +1,3 @@
-
-
 # List of activity types extracted from the Excel sheet
 ACTIVITY_TYPES = [
     "Reunió d'equip",
