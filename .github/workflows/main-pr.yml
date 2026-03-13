@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Fail if not from develop
         run: |
-          if [[ "${{ github.head_ref }}" != "develop" ]]; then
+          if [[ "${{ github.head_ref }}" != "dev" ]]; then
             echo "PR must come from develop branch only."
             exit 1
           fi
