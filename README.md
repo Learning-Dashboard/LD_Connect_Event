@@ -182,6 +182,23 @@ Configured hooks:
 
 ---
 
+## FAQs
+
+### What's the origin and purpouse of credentials_config.json?
+
+Basically, when LD Connect receives an event from GitHub or Taiga, it often needs to fetch additional details about the event (e.g., commit info, issue details) by calling the respective APIs. To authenticate these API calls, LD Connect uses tokens that are specific to each project or team. The `credentials_config.json` file serves as a mapping between project identifiers (like "TeamA") and their corresponding API tokens. This way, when an event comes in with a `prj` parameter, LD Connect can look up the correct token to use for any API requests related to that event.  
+
+## Can i use LD Connect alone, without LD-infrastructure?
+
+No, LD Connect is designed to work as part of the larger Learning Dashboard ecosystem. It relies on LD Eval for processing and calculating metrics based on the events it ingests. While you could technically run LD Connect in isolation, it would not be able to fulfill its intended purpose without the rest of the infrastructure, particularly LD Eval. Apart from that, LD Connect expects a mongodb instance to store the ingested events, so you would need to set that up as well (already included at ld-infrastructure).
+
+## What is the expected GitFlow for this repository?
+
+The expected GitFlow for this repository is as follows:
+- The `main` branch is the stable production branch. Only thoroughly tested and reviewed code should be merged here.
+- The `dev` branch is the main development branch where new features and bug fixes are integrated before they are ready for production. Developers should create feature branches off of `dev` for their work, and then merge back into `dev` once their work is complete and tested.
+- Pull requests to `main` should only be made from `dev`, ensuring that all changes go through the development and testing process before reaching production. This is enforced by the CI workflow defined in `.github/workflows/main-pr.yml`, which checks that PRs to `main` come from `dev` only.
+
 ## License
 
 Released under the **Apache License 2.0** – see [`LICENSE`](./LICENSE).
