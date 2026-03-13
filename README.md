@@ -1,3 +1,12 @@
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Learning-Dashboard_LD_Connect_Event&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Learning-Dashboard_LD_Connect_Event)
+[![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=Learning-Dashboard_LD_Connect_Event)](https://sonarcloud.io/summary/new_code?id=Learning-Dashboard_LD_Connect_Event)
+![License](https://img.shields.io/github/license/Learning-Dashboard/LD_Connect_Event?style=flat-square)
+![Python version](https://img.shields.io/badge/python-3.14-blue?style=flat-square)
+![GitHub last commit](https://img.shields.io/github/last-commit/Learning-Dashboard/LD_Connect_Event?style=flat-square)
+![GitHub repo size](https://img.shields.io/github/repo-size/Learning-Dashboard/LD_Connect_Event?style=flat-square)
+![GitHub top language](https://img.shields.io/github/languages/top/Learning-Dashboard/LD_Connect_Event?style=flat-square)
+
+
 # LD Connect – Event Ingestion Service
 
 **LD Connect** is the entry point of the Learning Dashboard pipeline.  
