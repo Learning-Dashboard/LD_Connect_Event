@@ -1,6 +1,6 @@
 import logging
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from utils.taiga_token.taiga_auth import get_taiga_token
 from config.credentials_loader import resolve
 
@@ -24,7 +24,7 @@ def milestone_stats(project_id: str, milestone_id: str, prj: str):
         return {}
 
     key = (project_id, milestone_id)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if key in _CACHE and now - _CACHE[key][0] < TTL:
         return _CACHE[key][1]
 

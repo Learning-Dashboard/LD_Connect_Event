@@ -49,7 +49,7 @@ class TestParseTaigaIssueEvent:
     def test_basic_issue_parsing(self, taiga_issue_payload):
         from datasources.taiga_handler import parse_taiga_issue_event
 
-        result = parse_taiga_issue_event(taiga_issue_payload, "TestPrj")
+        result = parse_taiga_issue_event(taiga_issue_payload)
 
         assert result["event_type"] == "issue"
         assert result["action_type"] == "create"
@@ -87,7 +87,7 @@ class TestParseTaigaIssueEvent:
             },
             "is_closed": False,
         }
-        result = parse_taiga_issue_event(payload, "P")
+        result = parse_taiga_issue_event(payload)
         assert result["assigned_to"] is None
 
 

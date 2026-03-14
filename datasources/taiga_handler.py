@@ -13,7 +13,7 @@ def parse_taiga_event(raw_payload: Dict, prj: str) -> Dict:
     """
     event_type = raw_payload.get("type")
     if event_type == "issue":
-        return parse_taiga_issue_event(raw_payload, prj)
+        return parse_taiga_issue_event(raw_payload)
     elif event_type == "epic":
         return parse_taiga_epic_event(raw_payload, prj)
     elif event_type == "task":
@@ -26,7 +26,7 @@ def parse_taiga_event(raw_payload: Dict, prj: str) -> Dict:
         return {"event": event_type, "error": "Unsupported event type"}
 
 
-def parse_taiga_issue_event(raw_payload: Dict, prj: str) -> Dict:
+def parse_taiga_issue_event(raw_payload: Dict) -> Dict:
     """
     Function to parse a taiga issue event payload.
     """
