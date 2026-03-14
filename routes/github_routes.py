@@ -47,7 +47,7 @@ def github_webhook():
 
     # Parse the raw JSON payload using the parse_github_event function
     parsed_data = parse_github_event(raw_payload, prj)
-    logger.info(f"Github webhook request processed successfully for team {prj}.")
+    logger.info("Github webhook request processed successfully for team %s.", prj)
 
     if parsed_data.get("ignored"):
         return make_response(jsonify({"status": "ignored", "event": parsed_data["event"]}), 200)
@@ -57,7 +57,12 @@ def github_webhook():
     team_name = parsed_data[
         "team_name"
     ]  # We wont use this, we will use the external_id instead as its a CENTRALIZED ID
-    logger.info(f"Processing Github event: {parsed_data['event']} for team: {team_name} (external_id: {prj})")
+    logger.info(
+        "Processing Github event: %s for team: %s (external_id: %s)",
+        parsed_data["event"],
+        team_name,
+        prj,
+    )
     event_label = parsed_data["event"]  # This is either "commit" or "issue"
     author_login = parsed_data["sender_info"][
         "login"
@@ -75,12 +80,15 @@ def github_webhook():
 
     # # COMMUNICATION WITH LD_EVAL USING API
     logger.info(
-        f"Notifying LD_EVAL about event: {event_name} for team with external_id: {prj} with quality_model: {quality_model}"
+        "Notifying LD_EVAL about event: %s for team with external_id: %s with quality_model: %s",
+        event_name,
+        prj,
+        quality_model,
     )
     try:
         notify_eval_push(event_name, prj, author_login, quality_model)
     except Exception as e:
-        logger.error(f"Error notifying LD_EVAL: {e}")
+        logger.error("Error notifying LD_EVAL: %s", e)
         return {"status": "error", "message": str(e)}, 500
 
     # If it's a commit push, we may have multiple commits. We need to insert each one separately.
@@ -93,9 +101,9 @@ def github_webhook():
             commit_doc["event"] = parsed_data["event"]
             commit_doc["repo_name"] = parsed_data["repo_name"]
 
-            logger.debug(f"Inserting commit document: {commit_doc}")
+            logger.debug("Inserting GitHub commit document for team %s", prj)
             coll.insert_one(commit_doc)
-            logger.info(f"Inserting in MongoDB Github commit for team {prj}")
+            logger.info("Inserting in MongoDB Github commit for team %s", prj)
 
         return make_response(jsonify({"status": "ok", "message": "Commits inserted"}), 200)
 
@@ -103,13 +111,15 @@ def github_webhook():
     elif "issue" in parsed_data:
         parsed_data["prj"] = prj
         coll.insert_one(parsed_data)
-        logger.info(f"Inserting in MongoDB Github issue for team {prj}")
+        logger.info("Inserting in MongoDB Github issue for team %s", prj)
         return make_response(jsonify({"status": "ok", "message": "Issue inserted"}), 200)
 
     elif "pull_request" in parsed_data:
         parsed_data["prj"] = prj
         coll.insert_one(parsed_data)
-        logger.info(f"Inserting in MongoDB Github closed pull request for team {prj}")
+        logger.info(
+            "Inserting in MongoDB Github closed pull request for team %s", prj
+        )
         return {"status": "ok", "message": "Pull request inserted"}, 200
 
     # If its neither a commit or a issue

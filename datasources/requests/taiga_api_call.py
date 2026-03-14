@@ -39,7 +39,7 @@ def milestone_stats(project_id: str, milestone_id: str, prj: str):
     if user and psw:
         token = get_taiga_token(user, psw)
         headers = {"Authorization": f"Bearer {token}"}
-        logger.debug("Using Taiga credentials for project:", prj)
+        logger.debug("Using Taiga credentials for project %s", prj)
     else:
         headers = {}
         logger.info("Using Taiga tunnel without authentication for project: %s", prj)

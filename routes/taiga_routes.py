@@ -38,8 +38,12 @@ def taiga_webhook():
     event_type = raw_payload.get("type", "")
     action_type = raw_payload.get("action", "")
     id = raw_payload.get("data", {}).get("id", "")
-    team_name = raw_payload.get("data", {}).get("project", {}).get("name", "")
-    logger.info(f"Processing Taiga event: {event_type} with action: {action_type} for team: {team_name} (external_id: {prj})")
+    logger.info(
+        "Processing Taiga event type=%s action=%s project=%s",
+        event_type,
+        action_type,
+        prj,
+    )
 
     # Decide the Mongo collection name to write to, depending on the event type
     if event_type in ["userstory", "relateduserstory"]:
@@ -57,11 +61,11 @@ def taiga_webhook():
 
     # Handle the deletion of a document before we parse the payload, to avoid data errors
     if action_type == "delete":
-        logger.info(f"Deleting document from {collection_name}. ID={id}")
+        logger.info("Deleting document from %s. ID=%s", collection_name, id)
         if not id:
             return jsonify({"error": "No object ID"}), 400
         coll.delete_one({f"{event_type}_id": id})
-        logger.info(f"Document with {event_type}={id} has been deleted.")
+        logger.info("Document with %s=%s has been deleted.", event_type, id)
         return jsonify({"status": "ok"}), 200
 
     # Parse the raw JSON payload using the parse_taiga_event function
@@ -79,12 +83,12 @@ def taiga_webhook():
         if not user_story_id:
             return jsonify({"error": "No user story ID"}), 400
 
-        logger.info(f"Upserting user story with ID: {user_story_id}")
+        logger.info("Upserting user story with ID: %s", user_story_id)
         parsed_data["prj"] = prj
         result = coll.update_one(
             {"userstory_id": user_story_id}, {"$set": parsed_data}, upsert=True
         )
-        logger.info(f"Inserting in MongoDB Taiga userstory for team {prj}")
+        logger.info("Inserting in MongoDB Taiga userstory for team %s", prj)
 
     # If the event is a taks , identify the task ID and upsert/insert it in the collection
     elif event_type == "task":
@@ -97,14 +101,20 @@ def taiga_webhook():
         if not task_id:
             return jsonify({"error": "No task ID"}), 400
 
-        logger.info(f"Upserting task with ID: {task_id}")
+        logger.info("Upserting task with ID: %s", task_id)
         # Upsert instead of insert
         result = parsed_data["prj"] = prj
-        logger.info(f"Upserting task with ID: {task_id} for team {prj} in collection {collection_name} result: {result}")
+        logger.info(
+            "Upserting task with ID: %s for team %s in collection %s result: %s",
+            task_id,
+            prj,
+            collection_name,
+            result,
+        )
         coll.update_one(
             {"task_id": task_id}, {"$set": parsed_data}, upsert=True
         )
-        logger.info(f"Inserting in MongoDB Taiga task for team {prj}")
+        logger.info("Inserting in MongoDB Taiga task for team %s", prj)
 
     # If the event is an epic, identify the epic ID and upsert/insert it in the collection
     elif event_type == "epic":
@@ -113,13 +123,13 @@ def taiga_webhook():
         if not epic_id:
             return jsonify({"error": "No epic ID"}), 400
 
-        logger.info(f"Upserting epic with ID: {epic_id}")
+        logger.info("Upserting epic with ID: %s", epic_id)
         # Upsert instead of insert
         parsed_data["prj"] = prj
         coll.update_one(
             {"epic_id": epic_id}, {"$set": parsed_data}, upsert=True
         )
-        logger.info(f"Inserting in MongoDB Taiga epic for team {prj}")
+        logger.info("Inserting in MongoDB Taiga epic for team %s", prj)
 
     # If the event is an issue, identify the issue ID and upsert/insert it in the collection
     elif event_type == "issue":
@@ -128,13 +138,13 @@ def taiga_webhook():
         if not issue_id:
             return jsonify({"error": "No issue ID"}), 400
 
-        logger.info(f"Upserting issue with ID: {issue_id}")
+        logger.info("Upserting issue with ID: %s", issue_id)
         parsed_data["prj"] = prj
         # Upsert instead of insert
         coll.update_one(
             {"issue_id": issue_id}, {"$set": parsed_data}, upsert=True
         )
-        logger.info(f"Inserting in MongoDB Taiga issue for team {prj}")
+        logger.info("Inserting in MongoDB Taiga issue for team %s", prj)
 
     else:
         # If the event is not one of the above, we will insert it as a new document
@@ -143,12 +153,15 @@ def taiga_webhook():
 
     # COMMUNICATION WITH LD_EVAL USING API
     logger.info(
-        f"Notifying LD_EVAL about event: {event_type} for team with external_id: {prj} with quality_model: {quality_model}"
+        "Notifying LD_EVAL about event: %s for team with external_id: %s with quality_model: %s",
+        event_type,
+        prj,
+        quality_model,
     )
     try:
         notify_eval_push(event_type, prj, author_login, quality_model)
     except Exception as e:
-        logger.error(f"Error notifying LD_EVAL: {e}")
+        logger.error("Error notifying LD_EVAL: %s", e)
         return jsonify({"error": "Failed to notify LD_EVAL"}), 500
 
     return jsonify({"status": "ok"}), 200
