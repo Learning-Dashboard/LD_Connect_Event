@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, make_response, request, jsonify
 from datasources.excel_handler import parse_excel_event
 from database.mongo_client import get_collection
 from config.logger_config import setup_logging
@@ -20,7 +20,7 @@ def excel_webhook():
     raw_json = request.get_json()
     if not raw_json:
         logger.warning("Excel webhook called without JSON payload.")
-        return {"error": "No JSON received"}, 400
+        return make_response(jsonify({"error": "No JSON received"}), 400)
 
     # Read the query parameters from the request
     prj = request.args.get("prj", type=str)
@@ -35,7 +35,7 @@ def excel_webhook():
     # Parse the raw JSON payload using the parse_excel_event function
     parsed_data = parse_excel_event(raw_json, prj, quality_model)
     if "error" in parsed_data:
-        return parsed_data, 400
+        return make_response(jsonify(parsed_data), 400)
     logger.info("Excel webhook request processed successfully.")
 
     # Create the collection name based on the project ID

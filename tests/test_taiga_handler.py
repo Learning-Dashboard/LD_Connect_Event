@@ -1,6 +1,5 @@
 """Tests for datasources/taiga_handler.py"""
 
-import pytest
 from unittest.mock import patch
 
 
@@ -240,12 +239,8 @@ class TestParseTaigaUserstoryEvent:
         assert result["priority"] == ""
 
     @patch("datasources.taiga_handler.milestone_stats", return_value={})
-    @pytest.mark.xfail(
-        reason="parse_taiga_userstory_event crashes when custom_attributes_values is None",
-        strict=False,
-    )
-    def test_userstory_custom_attributes_values_none_xfail(self, mock_ms):
-        """Explicitly exercise the None custom_attributes_values case to capture the known bug."""
+    def test_userstory_custom_attributes_values_none(self, mock_ms):
+        """Ensure None custom_attributes_values is handled without crashing."""
         from datasources.taiga_handler import parse_taiga_userstory_event
 
         payload = {
@@ -266,8 +261,11 @@ class TestParseTaigaUserstoryEvent:
             },
             "is_closed": False,
         }
-        with pytest.raises(AttributeError):
-            parse_taiga_userstory_event(payload, "P")
+        result = parse_taiga_userstory_event(payload, "P")
+
+        assert result["custom_attributes"] == {}
+        assert result["priority"] == ""
+        assert result["total_points"] == 3
 
 
 class TestParseTaigaRelatedUserstoryEvent:

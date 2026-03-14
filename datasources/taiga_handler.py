@@ -291,11 +291,7 @@ def parse_taiga_userstory_event(raw_payload: Dict, prj: str) -> Dict:
         estimated_finish = ""
         milestone_data = {}
 
-    priority = (
-        raw_payload.get("data", {})
-        .get("custom_attributes_values", {})
-        .get("Priority", "")
-    )
+    priority = custom_attributes.get("Priority", "")
     points_list = raw_payload.get("data", {}).get("points", [])
     sum_points = sum(p.get("value") or 0 for p in points_list)
 

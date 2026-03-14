@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, make_response, request, jsonify
 from datasources.github_handler import parse_github_event
 from database.mongo_client import get_collection
 from config.settings import GITHUB_SIGNATURE_KEY
@@ -50,9 +50,9 @@ def github_webhook():
     logger.info(f"Github webhook request processed successfully for team {prj}.")
 
     if parsed_data.get("ignored"):
-        return {"status": "ignored", "event": parsed_data["event"]}, 200
+        return make_response(jsonify({"status": "ignored", "event": parsed_data["event"]}), 200)
     if "error" in parsed_data:
-        return parsed_data, 400
+        return make_response(jsonify(parsed_data), 400)
 
     team_name = parsed_data[
         "team_name"
@@ -97,14 +97,14 @@ def github_webhook():
             coll.insert_one(commit_doc)
             logger.info(f"Inserting in MongoDB Github commit for team {prj}")
 
-        return {"status": "ok", "message": "Commits inserted"}, 200
+        return make_response(jsonify({"status": "ok", "message": "Commits inserted"}), 200)
 
     # If it's an issue event, we insert the issue document
     elif "issue" in parsed_data:
         parsed_data["prj"] = prj
         coll.insert_one(parsed_data)
         logger.info(f"Inserting in MongoDB Github issue for team {prj}")
-        return {"status": "ok", "message": "Issue inserted"}, 200
+        return make_response(jsonify({"status": "ok", "message": "Issue inserted"}), 200)
 
     elif "pull_request" in parsed_data:
         parsed_data["prj"] = prj

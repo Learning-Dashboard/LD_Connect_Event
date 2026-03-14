@@ -14,7 +14,7 @@ def parse_github_event(raw_payload: Dict, prj: str) -> Dict:
     if event_type == "push":
         return parse_github_push_event(raw_payload, prj)
     elif event_type == "issues":
-        return parse_github_issue_event(raw_payload, prj)
+        return parse_github_issue_event(raw_payload)
     elif event_type == "pull_request":
         return parse_github_pullrequest_event(raw_payload, prj)
     else:
@@ -112,7 +112,7 @@ def parse_github_push_event(raw_payload: Dict, prj: str) -> Dict:
     }
 
 
-def parse_github_issue_event(raw_payload: Dict, prj: str) -> Dict:
+def parse_github_issue_event(raw_payload: Dict) -> Dict:
     """
     Function to parse a GitHub issue event payload.
     """

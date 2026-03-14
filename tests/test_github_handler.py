@@ -209,7 +209,7 @@ class TestParseGithubIssueEvent:
     def test_basic_issue_parsing(self, github_issue_payload):
         from datasources.github_handler import parse_github_issue_event
 
-        result = parse_github_issue_event(github_issue_payload, "TestPrj")
+        result = parse_github_issue_event(github_issue_payload)
 
         assert result["event"] == "issue"
         assert result["action"] == "opened"
@@ -219,7 +219,7 @@ class TestParseGithubIssueEvent:
     def test_issue_object(self, github_issue_payload):
         from datasources.github_handler import parse_github_issue_event
 
-        result = parse_github_issue_event(github_issue_payload, "TestPrj")
+        result = parse_github_issue_event(github_issue_payload)
         issue = result["issue"]
 
         assert issue["number"] == 10
@@ -231,7 +231,7 @@ class TestParseGithubIssueEvent:
     def test_sender_info(self, github_issue_payload):
         from datasources.github_handler import parse_github_issue_event
 
-        result = parse_github_issue_event(github_issue_payload, "TestPrj")
+        result = parse_github_issue_event(github_issue_payload)
         assert result["sender_info"]["login"] == "issueuser"
         assert result["sender_info"]["id"] == 2
 
