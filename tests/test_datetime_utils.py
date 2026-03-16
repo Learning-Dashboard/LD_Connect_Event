@@ -1,5 +1,5 @@
 """Tests for utils/datetime_utils.py"""
-import pytest
+
 from utils.datetime_utils import to_madrid_local
 
 

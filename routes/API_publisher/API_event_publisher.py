@@ -5,15 +5,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def notify_eval_push(event_type: str,prj: str ,author_login: str , quality_model: str)-> None: 
-    '''
+def notify_eval_push(
+    event_type: str, prj: str, author_login: str, quality_model: str
+) -> None:
+    """
     Function used to notify Component LD_Eval about the event that has been pushed to the database.
-    '''
-    
+    """
+
     host = os.getenv("EVAL_HOST", "localhost")
     port = os.getenv("EVAL_PORT", "5001")
-    url  = f"http://{host}:{port}/api/event"
-    
+    url = f"http://{host}:{port}/api/event"
+
     event_data = {
         "event_type": event_type,
         "prj": prj,

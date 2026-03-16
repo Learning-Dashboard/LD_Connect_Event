@@ -1,5 +1,5 @@
 """Tests for utils/webhook_deletion/delete_webhooks_github.py"""
-import pytest
+
 from unittest.mock import patch, MagicMock
 
 
@@ -35,7 +35,9 @@ class TestDeleteAllGithubWebhooks:
     @patch("utils.webhook_deletion.delete_webhooks_github.list_github_hooks")
     @patch("utils.webhook_deletion.delete_webhooks_github.pymongo.MongoClient")
     def test_deletes_matching_webhooks(self, mock_mongo, mock_list, mock_delete):
-        from utils.webhook_deletion.delete_webhooks_github import delete_all_github_webhooks
+        from utils.webhook_deletion.delete_webhooks_github import (
+            delete_all_github_webhooks,
+        )
 
         # Setup mock MongoDB
         mock_db = MagicMock()
@@ -57,7 +59,9 @@ class TestDeleteAllGithubWebhooks:
     @patch("utils.webhook_deletion.delete_webhooks_github.pymongo.MongoClient")
     def test_http_error_listing_continues(self, mock_mongo, mock_list):
         import requests
-        from utils.webhook_deletion.delete_webhooks_github import delete_all_github_webhooks
+        from utils.webhook_deletion.delete_webhooks_github import (
+            delete_all_github_webhooks,
+        )
 
         mock_db = MagicMock()
         mock_db.list_collection_names.return_value = ["github_prj.commits"]

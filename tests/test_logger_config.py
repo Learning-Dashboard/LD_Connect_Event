@@ -1,5 +1,7 @@
 """Tests for config/logger_config.py"""
-import logging, os, pytest
+
+import logging
+import os
 from unittest.mock import patch
 
 
@@ -12,6 +14,7 @@ class TestSetupLogging:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("LOG_LEVEL", None)
             from config.logger_config import setup_logging
+
             setup_logging()
             assert root.level == logging.INFO
 
@@ -20,6 +23,7 @@ class TestSetupLogging:
         root.handlers.clear()
         with patch.dict(os.environ, {"LOG_LEVEL": "DEBUG"}):
             from config.logger_config import setup_logging
+
             setup_logging()
             assert root.level == logging.DEBUG
 
@@ -28,6 +32,7 @@ class TestSetupLogging:
         root = logging.getLogger()
         root.handlers.clear()
         from config.logger_config import setup_logging
+
         setup_logging()
         count_after_first = len(root.handlers)
         setup_logging()
@@ -38,6 +43,7 @@ class TestSetupLogging:
         root.handlers.clear()
         with patch.dict(os.environ, {"LOG_LEVEL": "INVALID_LEVEL"}):
             from config.logger_config import setup_logging
+
             setup_logging()
             # Should fall back to INFO
             assert root.level == logging.INFO

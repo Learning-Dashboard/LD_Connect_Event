@@ -1,7 +1,10 @@
 """
 Shared pytest fixtures for the LD_Connect_Event test suite.
 """
-import os, json, pytest
+
+import os
+import json
+import pytest
 
 # ── Set required env vars BEFORE any application module is imported ──────────
 os.environ.setdefault("GITHUB_SIGNATURE_KEY", "test-github-secret")
@@ -16,6 +19,7 @@ os.environ.setdefault("MONGO_DB", "testdb")
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def sample_credentials_config(tmp_path):
     """Create a temporary credentials JSON file and return its path."""
@@ -24,14 +28,14 @@ def sample_credentials_config(tmp_path):
             "github_token": "ghp_FAKETOKEN123",
             "taiga_user": "tuser",
             "taiga_password": "tpass",
-            "teams": ["TeamAlpha", "TeamBeta"]
+            "teams": ["TeamAlpha", "TeamBeta"],
         },
         "course_b": {
             "github_token": "ghp_FAKETOKEN456",
             "taiga_user": "",
             "taiga_password": "",
-            "teams": ["TeamGamma"]
-        }
+            "teams": ["TeamGamma"],
+        },
     }
     p = tmp_path / "creds.json"
     p.write_text(json.dumps(data))
@@ -42,6 +46,7 @@ def sample_credentials_config(tmp_path):
 def flask_app():
     """Create a Flask test application."""
     from app import create_app
+
     app = create_app()
     app.config["TESTING"] = True
     return app
@@ -55,6 +60,7 @@ def client(flask_app):
 
 # ── Sample payloads ──────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def github_push_payload():
     """Minimal GitHub push webhook payload."""
@@ -67,7 +73,7 @@ def github_push_payload():
             "login": "devuser",
             "url": "https://api.github.com/users/devuser",
             "type": "User",
-            "site_admin": False
+            "site_admin": False,
         },
         "commits": [
             {
@@ -78,10 +84,10 @@ def github_push_payload():
                 "author": {
                     "username": "devuser",
                     "name": "Dev User",
-                    "email": "dev@example.com"
-                }
+                    "email": "dev@example.com",
+                },
             }
-        ]
+        ],
     }
 
 
@@ -98,15 +104,15 @@ def github_issue_payload():
             "login": "issueuser",
             "url": "https://api.github.com/users/issueuser",
             "type": "User",
-            "site_admin": False
+            "site_admin": False,
         },
         "issue": {
             "number": 10,
             "title": "Bug in login",
             "state": "open",
             "body": "Login fails with error 500",
-            "user": {"login": "issueuser", "id": 2}
-        }
+            "user": {"login": "issueuser", "id": 2},
+        },
     }
 
 
@@ -123,7 +129,7 @@ def github_pr_payload():
             "login": "pruser",
             "url": "https://api.github.com/users/pruser",
             "type": "User",
-            "site_admin": False
+            "site_admin": False,
         },
         "pull_request": {
             "number": 5,
@@ -133,8 +139,8 @@ def github_pr_payload():
             "merged": True,
             "merged_by": {"login": "merger"},
             "assignee": {"login": "pruser"},
-            "requested_reviewers": [{"login": "reviewer1"}]
-        }
+            "requested_reviewers": [{"login": "reviewer1"}],
+        },
     }
 
 
@@ -162,11 +168,11 @@ def taiga_task_payload():
                 "created_date": "2025-05-01T00:00:00Z",
                 "modified_date": "2025-06-01T00:00:00Z",
                 "estimated_start": "2025-05-01T00:00:00Z",
-                "estimated_finish": "2025-06-01T00:00:00Z"
+                "estimated_finish": "2025-06-01T00:00:00Z",
             },
             "assigned_to": {"username": "dev1"},
-            "custom_attributes_values": {"story_points": 5}
-        }
+            "custom_attributes_values": {"story_points": 5},
+        },
     }
 
 
@@ -191,9 +197,9 @@ def taiga_issue_payload():
             "modified_date": "2025-06-10T10:00:00Z",
             "created_date": "2025-06-01T08:00:00Z",
             "finished_date": None,
-            "assigned_to": {"username": "dev2"}
+            "assigned_to": {"username": "dev2"},
         },
-        "is_closed": False
+        "is_closed": False,
     }
 
 
@@ -211,9 +217,9 @@ def taiga_epic_payload():
             "status": {"name": "New"},
             "is_closed": False,
             "modified_date": "2025-06-10T10:00:00Z",
-            "created_date": "2025-06-01T08:00:00Z"
+            "created_date": "2025-06-01T08:00:00Z",
         },
-        "is_closed": False
+        "is_closed": False,
     }
 
 
@@ -242,10 +248,10 @@ def taiga_userstory_payload():
                 "created_date": "2025-05-01T00:00:00Z",
                 "modified_date": "2025-06-01T00:00:00Z",
                 "estimated_start": "2025-05-01T00:00:00Z",
-                "estimated_finish": "2025-06-01T00:00:00Z"
-            }
+                "estimated_finish": "2025-06-01T00:00:00Z",
+            },
         },
-        "is_closed": False
+        "is_closed": False,
     }
 
 
@@ -262,11 +268,11 @@ def taiga_related_userstory_payload():
                 "id": 300,
                 "subject": "Epic feature",
                 "ref": 1,
-                "project": {"name": "TestProject"}
+                "project": {"name": "TestProject"},
             },
             "finished_date": "2025-07-01T12:00:00Z",
-            "assigned_to": {"username": "dev1"}
-        }
+            "assigned_to": {"username": "dev1"},
+        },
     }
 
 
@@ -283,5 +289,5 @@ def excel_payload():
         "epic": "Epic 1",
         "members": ["Alice", "Bob", ""],
         "memberHours": [3, 2],
-        "configRange": [0, 0, 0, 0, 5, 0, 0, 0]
+        "configRange": [0, 0, 0, 0, 5, 0, 0, 0],
     }

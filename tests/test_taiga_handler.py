@@ -1,38 +1,44 @@
 """Tests for datasources/taiga_handler.py"""
-import pytest
-from unittest.mock import patch, MagicMock
+
+from unittest.mock import patch
 
 
 class TestParseTaigaEvent:
     @patch("datasources.taiga_handler.milestone_stats", return_value={})
     def test_task_event(self, mock_ms, taiga_task_payload):
         from datasources.taiga_handler import parse_taiga_event
+
         result = parse_taiga_event(taiga_task_payload, "TestPrj")
         assert result["event_type"] == "task"
 
     def test_issue_event(self, taiga_issue_payload):
         from datasources.taiga_handler import parse_taiga_event
+
         result = parse_taiga_event(taiga_issue_payload, "TestPrj")
         assert result["event_type"] == "issue"
 
     def test_epic_event(self, taiga_epic_payload):
         from datasources.taiga_handler import parse_taiga_event
+
         result = parse_taiga_event(taiga_epic_payload, "TestPrj")
         assert result["event_type"] == "epic"
 
     @patch("datasources.taiga_handler.milestone_stats", return_value={})
     def test_userstory_event(self, mock_ms, taiga_userstory_payload):
         from datasources.taiga_handler import parse_taiga_event
+
         result = parse_taiga_event(taiga_userstory_payload, "TestPrj")
         assert result["event_type"] == "userstory"
 
     def test_relateduserstory_event(self, taiga_related_userstory_payload):
         from datasources.taiga_handler import parse_taiga_event
+
         result = parse_taiga_event(taiga_related_userstory_payload, "TestPrj")
         assert result["event_type"] == "relateduserstory"
 
     def test_unsupported_event(self):
         from datasources.taiga_handler import parse_taiga_event
+
         payload = {"type": "unknown_type"}
         result = parse_taiga_event(payload, "P")
         assert result["event"] == "unknown_type"
@@ -42,7 +48,8 @@ class TestParseTaigaEvent:
 class TestParseTaigaIssueEvent:
     def test_basic_issue_parsing(self, taiga_issue_payload):
         from datasources.taiga_handler import parse_taiga_issue_event
-        result = parse_taiga_issue_event(taiga_issue_payload, "TestPrj")
+
+        result = parse_taiga_issue_event(taiga_issue_payload)
 
         assert result["event_type"] == "issue"
         assert result["action_type"] == "create"
@@ -58,6 +65,7 @@ class TestParseTaigaIssueEvent:
 
     def test_issue_assigned_to_none(self):
         from datasources.taiga_handler import parse_taiga_issue_event
+
         payload = {
             "type": "issue",
             "action": "create",
@@ -75,17 +83,18 @@ class TestParseTaigaIssueEvent:
                 "modified_date": "",
                 "created_date": "",
                 "finished_date": "",
-                "assigned_to": None
+                "assigned_to": None,
             },
-            "is_closed": False
+            "is_closed": False,
         }
-        result = parse_taiga_issue_event(payload, "P")
+        result = parse_taiga_issue_event(payload)
         assert result["assigned_to"] is None
 
 
 class TestParseTaigaEpicEvent:
     def test_basic_epic_parsing(self, taiga_epic_payload):
         from datasources.taiga_handler import parse_taiga_epic_event
+
         result = parse_taiga_epic_event(taiga_epic_payload, "TestPrj")
 
         assert result["epic_id"] == 300
@@ -97,9 +106,13 @@ class TestParseTaigaEpicEvent:
 
 
 class TestParseTaigaTaskEvent:
-    @patch("datasources.taiga_handler.milestone_stats", return_value={"milestone_total_points": 10})
+    @patch(
+        "datasources.taiga_handler.milestone_stats",
+        return_value={"milestone_total_points": 10},
+    )
     def test_basic_task_parsing(self, mock_ms, taiga_task_payload):
         from datasources.taiga_handler import parse_taiga_task_event
+
         result = parse_taiga_task_event(taiga_task_payload, "TestPrj")
 
         assert result["event_type"] == "task"
@@ -118,6 +131,7 @@ class TestParseTaigaTaskEvent:
     @patch("datasources.taiga_handler.milestone_stats", return_value={})
     def test_task_assigned_to_none(self, mock_ms):
         from datasources.taiga_handler import parse_taiga_task_event
+
         payload = {
             "type": "task",
             "action": "create",
@@ -132,12 +146,18 @@ class TestParseTaigaTaskEvent:
                 "modified_date": "",
                 "finished_date": "",
                 "ref": 1,
-                "milestone": {"id": 1, "name": "S1", "closed": False,
-                              "created_date": "", "modified_date": "",
-                              "estimated_start": "", "estimated_finish": ""},
+                "milestone": {
+                    "id": 1,
+                    "name": "S1",
+                    "closed": False,
+                    "created_date": "",
+                    "modified_date": "",
+                    "estimated_start": "",
+                    "estimated_finish": "",
+                },
                 "assigned_to": None,
-                "custom_attributes_values": None
-            }
+                "custom_attributes_values": None,
+            },
         }
         result = parse_taiga_task_event(payload, "P")
         assert result["assigned_to"] is None
@@ -145,9 +165,13 @@ class TestParseTaigaTaskEvent:
 
 
 class TestParseTaigaUserstoryEvent:
-    @patch("datasources.taiga_handler.milestone_stats", return_value={"milestone_total_points": 20})
+    @patch(
+        "datasources.taiga_handler.milestone_stats",
+        return_value={"milestone_total_points": 20},
+    )
     def test_basic_userstory_parsing(self, mock_ms, taiga_userstory_payload):
         from datasources.taiga_handler import parse_taiga_userstory_event
+
         result = parse_taiga_userstory_event(taiga_userstory_payload, "TestPrj")
 
         assert result["event_type"] == "userstory"
@@ -161,6 +185,7 @@ class TestParseTaigaUserstoryEvent:
     @patch("datasources.taiga_handler.milestone_stats", return_value={})
     def test_userstory_no_pattern(self, mock_ms):
         from datasources.taiga_handler import parse_taiga_userstory_event
+
         payload = {
             "type": "userstory",
             "action": "create",
@@ -175,9 +200,9 @@ class TestParseTaigaUserstoryEvent:
                 "description": "Just a simple description",
                 "custom_attributes_values": {},
                 "points": [],
-                "milestone": None
+                "milestone": None,
             },
-            "is_closed": False
+            "is_closed": False,
         }
         result = parse_taiga_userstory_event(payload, "P")
         assert result["pattern"] is False
@@ -189,6 +214,7 @@ class TestParseTaigaUserstoryEvent:
         """When custom_attributes_values is None, the code crashes on .get('Priority').
         This is a known bug in the source. Test with empty dict instead."""
         from datasources.taiga_handler import parse_taiga_userstory_event
+
         payload = {
             "type": "userstory",
             "action": "create",
@@ -203,9 +229,9 @@ class TestParseTaigaUserstoryEvent:
                 "description": "",
                 "custom_attributes_values": {},
                 "points": [{"value": None}, {"value": 3}],
-                "milestone": None
+                "milestone": None,
             },
-            "is_closed": False
+            "is_closed": False,
         }
         result = parse_taiga_userstory_event(payload, "P")
         assert result["custom_attributes"] == {}
@@ -213,10 +239,10 @@ class TestParseTaigaUserstoryEvent:
         assert result["priority"] == ""
 
     @patch("datasources.taiga_handler.milestone_stats", return_value={})
-    @pytest.mark.xfail(reason="parse_taiga_userstory_event crashes when custom_attributes_values is None", strict=False)
-    def test_userstory_custom_attributes_values_none_xfail(self, mock_ms):
-        """Explicitly exercise the None custom_attributes_values case to capture the known bug."""
+    def test_userstory_custom_attributes_values_none(self, mock_ms):
+        """Ensure None custom_attributes_values is handled without crashing."""
         from datasources.taiga_handler import parse_taiga_userstory_event
+
         payload = {
             "type": "userstory",
             "action": "create",
@@ -231,16 +257,24 @@ class TestParseTaigaUserstoryEvent:
                 "description": "",
                 "custom_attributes_values": None,
                 "points": [{"value": None}, {"value": 3}],
-                "milestone": None
+                "milestone": None,
             },
-            "is_closed": False
+            "is_closed": False,
         }
-        with pytest.raises(AttributeError):
-            parse_taiga_userstory_event(payload, "P")
+        result = parse_taiga_userstory_event(payload, "P")
+
+        assert result["custom_attributes"] == {}
+        assert result["priority"] == ""
+        assert result["total_points"] == 3
+
+
 class TestParseTaigaRelatedUserstoryEvent:
     def test_basic_related_userstory_parsing(self, taiga_related_userstory_payload):
         from datasources.taiga_handler import parse_taiga_related_userstory_event
-        result = parse_taiga_related_userstory_event(taiga_related_userstory_payload, "TestPrj")
+
+        result = parse_taiga_related_userstory_event(
+            taiga_related_userstory_payload, "TestPrj"
+        )
 
         assert result["event_type"] == "relateduserstory"
         assert result["id"] == 400

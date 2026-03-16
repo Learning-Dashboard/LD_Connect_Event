@@ -1,5 +1,5 @@
 """Tests for datasources/requests/github_api_call.py"""
-import pytest
+
 from unittest.mock import patch, MagicMock
 
 
@@ -34,7 +34,10 @@ class TestFetchCommitStats:
         assert result == {"total": 0, "additions": 0, "deletions": 0}
 
     @patch("datasources.requests.github_api_call.resolve", return_value="ghp_TOKEN")
-    @patch("datasources.requests.github_api_call.requests.get", side_effect=Exception("Network error"))
+    @patch(
+        "datasources.requests.github_api_call.requests.get",
+        side_effect=Exception("Network error"),
+    )
     def test_network_error_returns_zeros(self, mock_get, mock_resolve):
         from datasources.requests.github_api_call import fetch_commit_stats
 
@@ -44,7 +47,9 @@ class TestFetchCommitStats:
     @patch("datasources.requests.github_api_call.resolve", return_value="ghp_TOKEN")
     @patch("datasources.requests.github_api_call.requests.get")
     def test_uses_correct_url(self, mock_get, mock_resolve):
-        from datasources.requests.github_api_call import fetch_commit_stats, GITHUB_API_URL
+        from datasources.requests.github_api_call import (
+            fetch_commit_stats,
+        )
 
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"stats": {}}

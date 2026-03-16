@@ -6,7 +6,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables from the .env file
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / ".env")
+
 
 def _require_env(name: str) -> str:
     value = os.getenv(name)
@@ -17,18 +18,21 @@ def _require_env(name: str) -> str:
         )
     return value
 
-#Mongo database settings
-MONGO_HOST     = os.getenv("MONGO_HOST", "mongodb")
-MONGO_PORT     = os.getenv("MONGO_PORT", "27017")
-MONGO_DB       = os.getenv("MONGO_DB", "mongo")
-MONGO_USER     = os.getenv("MONGO_USER", "")
-MONGO_PASS     = os.getenv("MONGO_PASS", "")
-MONGO_AUTHSRC  = os.getenv("MONGO_AUTHSRC", MONGO_DB)
+
+# Mongo database settings
+MONGO_HOST = os.getenv("MONGO_HOST", "mongodb")
+MONGO_PORT = os.getenv("MONGO_PORT", "27017")
+MONGO_DB = os.getenv("MONGO_DB", "mongo")
+MONGO_USER = os.getenv("MONGO_USER", "")
+MONGO_PASS = os.getenv("MONGO_PASS", "")
+MONGO_AUTHSRC = os.getenv("MONGO_AUTHSRC", MONGO_DB)
 
 if MONGO_USER and MONGO_PASS:
-    MONGO_URI = (f"mongodb://{MONGO_USER}:{MONGO_PASS}"
-                 f"@{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}"
-                 f"?authSource={MONGO_AUTHSRC}")
+    MONGO_URI = (
+        f"mongodb://{MONGO_USER}:{MONGO_PASS}"
+        f"@{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}"
+        f"?authSource={MONGO_AUTHSRC}"
+    )
 else:
     MONGO_URI = f"mongodb://{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}"
 
@@ -42,7 +46,7 @@ TAIGA_AUTH_URL = os.getenv("TAIGA_AUTH_URL", TAIGA_API_URL)
 TAIGA_TOKEN = os.getenv("TAIGA_TOKEN", "")
 TAIGA_SIGNATURE_KEY = _require_env("TAIGA_SIGNATURE_KEY")
 TAIGA_USERNAME = _require_env("TAIGA_USERNAME")
-TAIGA_PASSWORD= _require_env("TAIGA_PASSWORD")
+TAIGA_PASSWORD = _require_env("TAIGA_PASSWORD")
 
 
 # Load the webhook URLs from the environment to enable the deletion of webhooks

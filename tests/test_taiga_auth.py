@@ -1,5 +1,7 @@
 """Tests for utils/taiga_token/taiga_auth.py"""
-import time, pytest
+
+import time
+import pytest
 from unittest.mock import patch, MagicMock
 
 
@@ -7,6 +9,7 @@ class TestGetTaigaToken:
     def setup_method(self):
         """Clear the token cache before each test."""
         import utils.taiga_token.taiga_auth as mod
+
         mod._TOKENS.clear()
 
     @patch("utils.taiga_token.taiga_auth.requests.post")
