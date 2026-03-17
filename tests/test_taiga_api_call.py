@@ -1,17 +1,24 @@
 """Tests for datasources/requests/taiga_api_call.py"""
-import pytest
+
 from unittest.mock import patch, MagicMock
-from datetime import datetime, timedelta
 
 
 class TestMilestoneStats:
     def setup_method(self):
         """Clear the cache before each test."""
         import datasources.requests.taiga_api_call as mod
+
         mod._CACHE.clear()
 
-    @patch("datasources.requests.taiga_api_call.resolve", side_effect=lambda prj, f: {"taiga_user": "u", "taiga_password": "p"}.get(f, ""))
-    @patch("datasources.requests.taiga_api_call.get_taiga_token", return_value="fake_token")
+    @patch(
+        "datasources.requests.taiga_api_call.resolve",
+        side_effect=lambda prj, f: {"taiga_user": "u", "taiga_password": "p"}.get(
+            f, ""
+        ),
+    )
+    @patch(
+        "datasources.requests.taiga_api_call.get_taiga_token", return_value="fake_token"
+    )
     @patch("datasources.requests.taiga_api_call.requests.get")
     def test_successful_fetch(self, mock_get, mock_token, mock_resolve):
         from datasources.requests.taiga_api_call import milestone_stats
@@ -23,7 +30,7 @@ class TestMilestoneStats:
             "total_userstories": 4,
             "completed_userstories": 2,
             "total_tasks": 10,
-            "completed_tasks": 6
+            "completed_tasks": 6,
         }
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
@@ -38,16 +45,25 @@ class TestMilestoneStats:
 
     def test_empty_project_id(self):
         from datasources.requests.taiga_api_call import milestone_stats
+
         result = milestone_stats("", "mile1", "P")
         assert result == {}
 
     def test_empty_milestone_id(self):
         from datasources.requests.taiga_api_call import milestone_stats
+
         result = milestone_stats("proj1", "", "P")
         assert result == {}
 
-    @patch("datasources.requests.taiga_api_call.resolve", side_effect=lambda prj, f: {"taiga_user": "u", "taiga_password": "p"}.get(f, ""))
-    @patch("datasources.requests.taiga_api_call.get_taiga_token", return_value="fake_token")
+    @patch(
+        "datasources.requests.taiga_api_call.resolve",
+        side_effect=lambda prj, f: {"taiga_user": "u", "taiga_password": "p"}.get(
+            f, ""
+        ),
+    )
+    @patch(
+        "datasources.requests.taiga_api_call.get_taiga_token", return_value="fake_token"
+    )
     @patch("datasources.requests.taiga_api_call.requests.get")
     def test_caching(self, mock_get, mock_token, mock_resolve):
         from datasources.requests.taiga_api_call import milestone_stats
@@ -59,7 +75,7 @@ class TestMilestoneStats:
             "total_userstories": 1,
             "completed_userstories": 0,
             "total_tasks": 1,
-            "completed_tasks": 0
+            "completed_tasks": 0,
         }
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
@@ -70,7 +86,10 @@ class TestMilestoneStats:
         milestone_stats("p1", "m1", "P")
         assert mock_get.call_count == 1  # Only called once due to caching
 
-    @patch("datasources.requests.taiga_api_call.resolve", side_effect=lambda prj, f: {"taiga_user": "", "taiga_password": ""}.get(f, ""))
+    @patch(
+        "datasources.requests.taiga_api_call.resolve",
+        side_effect=lambda prj, f: {"taiga_user": "", "taiga_password": ""}.get(f, ""),
+    )
     @patch("datasources.requests.taiga_api_call.requests.get")
     def test_no_credentials_no_auth_header(self, mock_get, mock_resolve):
         from datasources.requests.taiga_api_call import milestone_stats
@@ -82,7 +101,7 @@ class TestMilestoneStats:
             "total_userstories": 0,
             "completed_userstories": 0,
             "total_tasks": 0,
-            "completed_tasks": 0
+            "completed_tasks": 0,
         }
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
@@ -91,7 +110,12 @@ class TestMilestoneStats:
         headers = mock_get.call_args[1]["headers"]
         assert "Authorization" not in headers
 
-    @patch("datasources.requests.taiga_api_call.resolve", side_effect=lambda prj, f: {"taiga_user": "u", "taiga_password": "p"}.get(f, ""))
+    @patch(
+        "datasources.requests.taiga_api_call.resolve",
+        side_effect=lambda prj, f: {"taiga_user": "u", "taiga_password": "p"}.get(
+            f, ""
+        ),
+    )
     @patch("datasources.requests.taiga_api_call.get_taiga_token", return_value="tok")
     @patch("datasources.requests.taiga_api_call.requests.get")
     def test_http_error_returns_zeros(self, mock_get, mock_token, mock_resolve):

@@ -1,5 +1,8 @@
 """Tests for routes/github_routes.py"""
-import hashlib, hmac, json, pytest
+
+import hashlib
+import hmac
+import json
 from unittest.mock import patch, MagicMock
 
 
@@ -12,15 +15,15 @@ class TestGithubWebhook:
     @patch("routes.github_routes.get_collection")
     @patch("routes.github_routes.parse_github_event")
     @patch("routes.github_routes.verify_github_signature", return_value=True)
-    def test_push_event_inserts_commits(self, mock_verify, mock_parse, mock_coll, mock_notify, client):
+    def test_push_event_inserts_commits(
+        self, mock_verify, mock_parse, mock_coll, mock_notify, client
+    ):
         mock_parse.return_value = {
             "event": "commit",
             "team_name": "TestOrg",
             "repo_name": "TestOrg/repo",
             "sender_info": {"login": "dev"},
-            "commits": [
-                {"sha": "abc123", "message": "fix bug"}
-            ]
+            "commits": [{"sha": "abc123", "message": "fix bug"}],
         }
         mock_collection = MagicMock()
         mock_coll.return_value = mock_collection
@@ -30,10 +33,7 @@ class TestGithubWebhook:
             "/webhook/github?prj=TestPrj&quality_model=default",
             data=body,
             content_type="application/json",
-            headers={
-                "X-GitHub-Event": "push",
-                "X-Hub-Signature-256": "sha256=fake"
-            }
+            headers={"X-GitHub-Event": "push", "X-Hub-Signature-256": "sha256=fake"},
         )
         assert resp.status_code == 200
         mock_collection.insert_one.assert_called_once()
@@ -45,7 +45,7 @@ class TestGithubWebhook:
             "/webhook/github?prj=TestPrj",
             data=json.dumps({"test": True}),
             content_type="application/json",
-            headers={"X-Hub-Signature-256": "sha256=bad"}
+            headers={"X-Hub-Signature-256": "sha256=bad"},
         )
         assert resp.status_code == 403
 
@@ -55,7 +55,7 @@ class TestGithubWebhook:
             "/webhook/github?prj=TestPrj",
             data="",
             content_type="application/json",
-            headers={"X-Hub-Signature-256": "sha256=x"}
+            headers={"X-Hub-Signature-256": "sha256=x"},
         )
         assert resp.status_code == 400
 
@@ -65,21 +65,23 @@ class TestGithubWebhook:
             "/webhook/github",
             data=json.dumps({"test": True}),
             content_type="application/json",
-            headers={"X-Hub-Signature-256": "sha256=x"}
+            headers={"X-Hub-Signature-256": "sha256=x"},
         )
         assert resp.status_code == 400
 
     @patch("routes.github_routes.get_collection")
     @patch("routes.github_routes.parse_github_event")
     @patch("routes.github_routes.verify_github_signature", return_value=True)
-    def test_ignored_event_returns_200(self, mock_verify, mock_parse, mock_coll, client):
+    def test_ignored_event_returns_200(
+        self, mock_verify, mock_parse, mock_coll, client
+    ):
         mock_parse.return_value = {"event": "deployment", "ignored": True}
 
         resp = client.post(
             "/webhook/github?prj=TestPrj",
             data=json.dumps({"test": True}),
             content_type="application/json",
-            headers={"X-GitHub-Event": "deployment", "X-Hub-Signature-256": "sha256=x"}
+            headers={"X-GitHub-Event": "deployment", "X-Hub-Signature-256": "sha256=x"},
         )
         assert resp.status_code == 200
         data = resp.get_json()
@@ -89,13 +91,15 @@ class TestGithubWebhook:
     @patch("routes.github_routes.get_collection")
     @patch("routes.github_routes.parse_github_event")
     @patch("routes.github_routes.verify_github_signature", return_value=True)
-    def test_issue_event_inserts_doc(self, mock_verify, mock_parse, mock_coll, mock_notify, client):
+    def test_issue_event_inserts_doc(
+        self, mock_verify, mock_parse, mock_coll, mock_notify, client
+    ):
         mock_parse.return_value = {
             "event": "issue",
             "team_name": "TestOrg",
             "repo_name": "TestOrg/repo",
             "sender_info": {"login": "dev"},
-            "issue": {"number": 1, "title": "Bug"}
+            "issue": {"number": 1, "title": "Bug"},
         }
         mock_collection = MagicMock()
         mock_coll.return_value = mock_collection
@@ -104,7 +108,7 @@ class TestGithubWebhook:
             "/webhook/github?prj=TestPrj",
             data=json.dumps({"test": True}),
             content_type="application/json",
-            headers={"X-GitHub-Event": "issues", "X-Hub-Signature-256": "sha256=x"}
+            headers={"X-GitHub-Event": "issues", "X-Hub-Signature-256": "sha256=x"},
         )
         assert resp.status_code == 200
         mock_collection.insert_one.assert_called_once()
@@ -113,13 +117,15 @@ class TestGithubWebhook:
     @patch("routes.github_routes.get_collection")
     @patch("routes.github_routes.parse_github_event")
     @patch("routes.github_routes.verify_github_signature", return_value=True)
-    def test_pull_request_event(self, mock_verify, mock_parse, mock_coll, mock_notify, client):
+    def test_pull_request_event(
+        self, mock_verify, mock_parse, mock_coll, mock_notify, client
+    ):
         mock_parse.return_value = {
             "event": "pull_request",
             "team_name": "TestOrg",
             "repo_name": "TestOrg/repo",
             "sender_info": {"login": "dev"},
-            "pull_request": {"number": 5}
+            "pull_request": {"number": 5},
         }
         mock_collection = MagicMock()
         mock_coll.return_value = mock_collection
@@ -128,7 +134,10 @@ class TestGithubWebhook:
             "/webhook/github?prj=TestPrj",
             data=json.dumps({"test": True}),
             content_type="application/json",
-            headers={"X-GitHub-Event": "pull_request", "X-Hub-Signature-256": "sha256=x"}
+            headers={
+                "X-GitHub-Event": "pull_request",
+                "X-Hub-Signature-256": "sha256=x",
+            },
         )
         assert resp.status_code == 200
 
@@ -141,7 +150,7 @@ class TestGithubWebhook:
             "/webhook/github?prj=TestPrj",
             data=json.dumps({"test": True}),
             content_type="application/json",
-            headers={"X-GitHub-Event": "push", "X-Hub-Signature-256": "sha256=x"}
+            headers={"X-GitHub-Event": "push", "X-Hub-Signature-256": "sha256=x"},
         )
         assert resp.status_code == 400
 
@@ -149,13 +158,15 @@ class TestGithubWebhook:
     @patch("routes.github_routes.get_collection")
     @patch("routes.github_routes.parse_github_event")
     @patch("routes.github_routes.verify_github_signature", return_value=True)
-    def test_notify_eval_error_returns_500(self, mock_verify, mock_parse, mock_coll, mock_notify, client):
+    def test_notify_eval_error_returns_500(
+        self, mock_verify, mock_parse, mock_coll, mock_notify, client
+    ):
         mock_parse.return_value = {
             "event": "commit",
             "team_name": "T",
             "repo_name": "T/r",
             "sender_info": {"login": "u"},
-            "commits": [{"sha": "a"}]
+            "commits": [{"sha": "a"}],
         }
         mock_coll.return_value = MagicMock()
 
@@ -163,7 +174,7 @@ class TestGithubWebhook:
             "/webhook/github?prj=P",
             data=json.dumps({"test": True}),
             content_type="application/json",
-            headers={"X-GitHub-Event": "push", "X-Hub-Signature-256": "sha256=x"}
+            headers={"X-GitHub-Event": "push", "X-Hub-Signature-256": "sha256=x"},
         )
         assert resp.status_code == 500
 
@@ -171,13 +182,15 @@ class TestGithubWebhook:
     @patch("routes.github_routes.get_collection")
     @patch("routes.github_routes.parse_github_event")
     @patch("routes.github_routes.verify_github_signature", return_value=True)
-    def test_collection_name_commit(self, mock_verify, mock_parse, mock_coll, mock_notify, client):
+    def test_collection_name_commit(
+        self, mock_verify, mock_parse, mock_coll, mock_notify, client
+    ):
         mock_parse.return_value = {
             "event": "commit",
             "team_name": "T",
             "repo_name": "T/r",
             "sender_info": {"login": "u"},
-            "commits": [{"sha": "a"}]
+            "commits": [{"sha": "a"}],
         }
         mock_coll.return_value = MagicMock()
 
@@ -185,7 +198,7 @@ class TestGithubWebhook:
             "/webhook/github?prj=MyPrj",
             data=json.dumps({"test": True}),
             content_type="application/json",
-            headers={"X-GitHub-Event": "push", "X-Hub-Signature-256": "sha256=x"}
+            headers={"X-GitHub-Event": "push", "X-Hub-Signature-256": "sha256=x"},
         )
         mock_coll.assert_called_with("github_MyPrj.commits")
 
@@ -193,13 +206,15 @@ class TestGithubWebhook:
     @patch("routes.github_routes.get_collection")
     @patch("routes.github_routes.parse_github_event")
     @patch("routes.github_routes.verify_github_signature", return_value=True)
-    def test_collection_name_issue(self, mock_verify, mock_parse, mock_coll, mock_notify, client):
+    def test_collection_name_issue(
+        self, mock_verify, mock_parse, mock_coll, mock_notify, client
+    ):
         mock_parse.return_value = {
             "event": "issue",
             "team_name": "T",
             "repo_name": "T/r",
             "sender_info": {"login": "u"},
-            "issue": {"number": 1}
+            "issue": {"number": 1},
         }
         mock_coll.return_value = MagicMock()
 
@@ -207,6 +222,6 @@ class TestGithubWebhook:
             "/webhook/github?prj=MyPrj",
             data=json.dumps({"test": True}),
             content_type="application/json",
-            headers={"X-GitHub-Event": "issues", "X-Hub-Signature-256": "sha256=x"}
+            headers={"X-GitHub-Event": "issues", "X-Hub-Signature-256": "sha256=x"},
         )
         mock_coll.assert_called_with("MyPrj_issues")

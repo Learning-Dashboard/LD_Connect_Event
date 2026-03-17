@@ -1,5 +1,5 @@
 """Tests for routes/API_publisher/API_event_publisher.py"""
-import pytest
+
 from unittest.mock import patch, MagicMock
 
 
@@ -27,6 +27,7 @@ class TestNotifyEvalPush:
     def test_network_error_does_not_raise(self, mock_post):
         import requests as req
         from routes.API_publisher.API_event_publisher import notify_eval_push
+
         mock_post.side_effect = req.RequestException("Connection refused")
         # Should not raise — it logs and continues
         notify_eval_push("push", "P", "u", "qm")

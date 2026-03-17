@@ -1,4 +1,5 @@
 """Tests for utils/taiga_token/get_taiga_token.py"""
+
 import pytest
 from unittest.mock import patch, MagicMock
 
