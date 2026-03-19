@@ -1,5 +1,6 @@
 """Tests for datasources/requests/taiga_api_call.py"""
 
+import requests
 from unittest.mock import patch, MagicMock
 
 
@@ -119,14 +120,54 @@ class TestMilestoneStats:
     @patch("datasources.requests.taiga_api_call.get_taiga_token", return_value="tok")
     @patch("datasources.requests.taiga_api_call.requests.get")
     def test_http_error_returns_zeros(self, mock_get, mock_token, mock_resolve):
-        import requests as req
         from datasources.requests.taiga_api_call import milestone_stats
 
         mock_resp = MagicMock()
         mock_resp.status_code = 403
-        mock_resp.raise_for_status.side_effect = req.exceptions.HTTPError("Forbidden")
+        mock_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "Forbidden"
+        )
         mock_get.return_value = mock_resp
 
         result = milestone_stats("p1", "m1", "P")
         assert result["milestone_total_points"] == 0
         assert result["milestone_closed_points"] == 0
+
+    @patch(
+        "datasources.requests.taiga_api_call.resolve",
+        side_effect=lambda prj, f: {"taiga_user": "u", "taiga_password": "p"}.get(
+            f, ""
+        ),
+    )
+    @patch(
+        "datasources.requests.taiga_api_call.get_taiga_token",
+        side_effect=requests.exceptions.ReadTimeout("timeout"),
+    )
+    def test_token_timeout_returns_zeros(self, mock_token, mock_resolve):
+        from datasources.requests.taiga_api_call import milestone_stats
+
+        result = milestone_stats("p1", "m1", "P")
+        assert result["milestone_total_points"] == 0
+        assert result["milestone_closed_points"] == 0
+        assert result["milestone_total_userstories"] == 0
+
+    @patch(
+        "datasources.requests.taiga_api_call.resolve",
+        side_effect=lambda prj, f: {"taiga_user": "u", "taiga_password": "p"}.get(
+            f, ""
+        ),
+    )
+    @patch(
+        "datasources.requests.taiga_api_call.get_taiga_token", return_value="fake_token"
+    )
+    @patch(
+        "datasources.requests.taiga_api_call.requests.get",
+        side_effect=requests.exceptions.ReadTimeout("timeout"),
+    )
+    def test_stats_timeout_returns_zeros(self, mock_get, mock_token, mock_resolve):
+        from datasources.requests.taiga_api_call import milestone_stats
+
+        result = milestone_stats("p1", "m1", "P")
+        assert result["milestone_total_points"] == 0
+        assert result["milestone_closed_points"] == 0
+        assert result["milestone_total_userstories"] == 0

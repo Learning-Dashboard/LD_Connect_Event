@@ -14,7 +14,7 @@ class TestGetTaigaToken:
 
     @patch("utils.taiga_token.taiga_auth.requests.post")
     def test_new_token_acquired(self, mock_post):
-        from utils.taiga_token.taiga_auth import get_taiga_token
+        from utils.taiga_token.taiga_auth import AUTH_TIMEOUT, TAIGA_AUTH_URL, get_taiga_token
 
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"auth_token": "new_tok"}
@@ -24,6 +24,8 @@ class TestGetTaigaToken:
         token = get_taiga_token("user", "pass")
         assert token == "new_tok"
         mock_post.assert_called_once()
+        assert mock_post.call_args.args[0] == TAIGA_AUTH_URL
+        assert mock_post.call_args.kwargs["timeout"] == AUTH_TIMEOUT
 
     @patch("utils.taiga_token.taiga_auth.requests.post")
     def test_cached_token_reused(self, mock_post):
