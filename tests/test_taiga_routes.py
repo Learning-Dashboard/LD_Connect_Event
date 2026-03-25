@@ -82,9 +82,10 @@ class TestTaigaWebhook:
         data = resp.get_json()
         assert data["status"] == "ignored"
 
+    @patch("routes.taiga_routes.notify_eval_push")
     @patch("routes.taiga_routes.get_collection")
     @patch("routes.taiga_routes.verify_taiga_signature", return_value=True)
-    def test_delete_action(self, mock_verify, mock_coll, client):
+    def test_delete_action(self, mock_verify, mock_coll, mock_notify, client):
         payload = {
             "type": "task",
             "action": "delete",
@@ -102,6 +103,7 @@ class TestTaigaWebhook:
         )
         assert resp.status_code == 200
         mock_collection.delete_one.assert_called_once_with({"task_id": 99})
+        mock_notify.assert_called_once_with("task", "P", "u", None)
 
     @patch("routes.taiga_routes.get_collection")
     @patch("routes.taiga_routes.verify_taiga_signature", return_value=True)

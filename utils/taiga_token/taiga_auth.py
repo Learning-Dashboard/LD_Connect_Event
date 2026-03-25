@@ -1,9 +1,11 @@
 import requests
 import logging
 import time
+from config.settings import TAIGA_AUTH_URL
 
 log = logging.getLogger(__name__)
 _TOKENS = {}  # key = (username, password) -> token
+AUTH_TIMEOUT = (5, 10)
 
 
 def get_taiga_token(username: str, password: str) -> str:
@@ -19,9 +21,7 @@ def get_taiga_token(username: str, password: str) -> str:
     # If the token is not set or is about to expire, request a new one
     if token is None or exp - time.time() < 60:
         payload = {"username": username, "password": password, "type": "normal"}
-        r = requests.post(
-            "https://api.taiga.io/api/v1/auth", json=payload, timeout=(2, 5)
-        )
+        r = requests.post(TAIGA_AUTH_URL, json=payload, timeout=AUTH_TIMEOUT)
         r.raise_for_status()
 
         token = r.json()["auth_token"]
