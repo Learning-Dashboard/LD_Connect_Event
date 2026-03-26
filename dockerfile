@@ -1,5 +1,5 @@
 # Use a lightweight Python base image
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 # Create and use the /app directory
 WORKDIR /app

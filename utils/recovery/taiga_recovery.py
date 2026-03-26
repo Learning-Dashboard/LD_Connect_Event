@@ -12,6 +12,8 @@ from config.logger_config import setup_logging
 
 from config.settings import TAIGA_USERNAME, TAIGA_PASSWORD, TAIGA_API_URL, TAIGA_AUTH_URL
 
+from utils.pattern_detector import PatternDetector
+
 setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -118,7 +120,7 @@ def task_from_api(j: dict, prj: str) -> dict:
         "event_type":     "task",
         "finished_date":  j["finished_date"],
         "is_closed":      j["status_extra_info"]["is_closed"],
-        "milestone_closed": m.get("closed"),
+        "milestone_closed": bool(m.get("closed", False)),
         "milestone_created_date": m.get("created_date"),
         "milestone_id":   j.get("milestone"),
         "milestone_modified_date": m.get("modified_date"),
@@ -186,7 +188,7 @@ def userstory_from_api(j: dict, prj: str) -> dict:
     '''
     m = j.get("milestone_extra_info") or {}
     desc = j.get("description") or ""
-    pattern = bool(re.search(r"as\s+.*?\s+i want\s+.*?\s+so that\s+.*", desc, re.I))
+    pattern = PatternDetector.detect_pattern(desc)
     raw_points = j.get("points")          # puede ser list | "" | None
     if isinstance(raw_points, list):
         total = sum((p.get("value") or 0) for p in raw_points)
@@ -203,7 +205,7 @@ def userstory_from_api(j: dict, prj: str) -> dict:
         "estimated_start":  m.get("estimated_start"),
         "event_type":  "userstory",
         "is_closed":   (j.get("status_extra_info") or {}).get("is_closed"),
-        "milestone_closed": m.get("closed"),
+        "milestone_closed": bool(m.get("closed", False)),
         "milestone_created_date": m.get("created_date"),
         "milestone_id":   j.get("milestone"),
         "milestone_modified_date": m.get("modified_date"),
@@ -266,7 +268,9 @@ def main(argv: list[str] | None = None):
         endpoint, converter, key = ENTITY_ENDPOINT[event]
         raw = fetch_entities(event, pid, start, end)   # Get the raw data from the Taiga API for the event
         docs = [converter(r, ns.prj) for r in raw]        # Convert the raw data to the MongoDB schema using the converter function
-        coll = get_collection(f"taiga_{ns.prj}.{event}")  # Get the MongoDB collection for the event
+        # Usar el nombre plural correcto para la colección de userstories
+        collection_name = f"taiga_{ns.prj}.userstories" if event == "userstory" else f"taiga_{ns.prj}.{event}"
+        coll = get_collection(collection_name)  # Get the MongoDB collection for the event
         n    = upsert(coll, docs, key)                        # Upsert the documents
         total += n
         print(f" • {event:<12} → {n:>4} documents")          # Print total number of documments

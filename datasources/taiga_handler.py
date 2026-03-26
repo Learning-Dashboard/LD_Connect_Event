@@ -1,6 +1,7 @@
 from typing import Dict
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from utils.pattern_detector import PatternDetector
 import re
 
 from datasources.requests.taiga_api_call import  milestone_stats
@@ -160,7 +161,7 @@ def parse_taiga_task_event(raw_payload: Dict, prj: str) -> Dict:
     reference=raw_payload.get("data",{}).get("ref", "")
     milestone_id=raw_payload.get("data",{}).get("milestone",{}).get("id", "")
     milestone_name=raw_payload.get("data",{}).get("milestone",{}).get("name", "")
-    milestone_closed=raw_payload.get("data",{}).get("milestone",{}).get("closed", "")
+    milestone_closed=bool(raw_payload.get("data",{}).get("milestone",{}).get("closed", False))
     milestone_created_date=raw_payload.get("data",{}).get("milestone",{}).get("created_date", "")
     milestone_created_date = to_madrid_local(milestone_created_date) if milestone_created_date else ""
     milestone_modified_date=raw_payload.get("data",{}).get("milestone",{}).get("modified_date", "")
@@ -244,20 +245,15 @@ def parse_taiga_userstory_event(raw_payload: Dict, prj: str) -> Dict:
         custom_attributes = {}
     
     description= raw_payload.get("data", {}).get("description", "")
-    #If the pattern "AS - A - I WANT - SO THAT" is used in the description, the vañue of pattern will be True, if not, it will be False
-    pattern = r"as\s+(.*?)\s+i want\s+(.*?)\s+so that\s+(.*)"
-    match = re.search(pattern, description, re.IGNORECASE)
-    if match:
-        pattern_in_description = True
-    else:
-        pattern_in_description = False
+    # Detect BDD pattern (EN/ES/CA)
+    pattern_in_description = PatternDetector.detect_pattern(description)
     
     # If the userstory has a milestone associated while created, we will get the values, if not, we will set them to None
     if raw_payload.get("data",{}).get("milestone",{}) != None:
         
         milestone_id= raw_payload.get("data",{}).get("milestone",{}).get("id", "")
         milestone_name= raw_payload.get("data",{}).get("milestone",{}).get("name", "")
-        milestone_closed= raw_payload.get("data",{}).get("milestone",{}).get("closed", "")
+        milestone_closed= bool(raw_payload.get("data",{}).get("milestone",{}).get("closed", False))
         milestone_created_date= to_madrid_local(raw_payload.get("data",{}).get("milestone",{}).get("created_date", ""))
         milestone_modified_date= to_madrid_local(raw_payload.get("data",{}).get("milestone",{}).get("modified_date", ""))
         milestone_modified_date = to_madrid_local(milestone_modified_date) if milestone_modified_date else ""
@@ -271,7 +267,7 @@ def parse_taiga_userstory_event(raw_payload: Dict, prj: str) -> Dict:
     else:
         milestone_id= ""
         milestone_name= ""
-        milestone_closed= ""
+        milestone_closed= False
         milestone_created_date= ""
         milestone_modified_date= ""
         estimated_start= ""

@@ -49,9 +49,10 @@ def parse_github_push_event(raw_payload: Dict, prj: str) -> Dict:
 
     # The 'sender' object is at the top level
     sender = raw_payload.get("sender", {})
+    sender_login = sender.get("login") or "anonymous"
     sender_info = {
         "id": sender.get("id", ""),
-        "login": sender.get("login", ""),
+        "login": sender_login,
         "url": sender.get("url", ""),
         "type": sender.get("type", ""),
         "site_admin": sender.get("site_admin", False)
@@ -68,7 +69,7 @@ def parse_github_push_event(raw_payload: Dict, prj: str) -> Dict:
         date= to_madrid_local(c.get("timestamp"))
 
         # Built author information
-        author_login = c.get("author", {}).get("username", "")
+        author_login = c.get("author", {}).get("username") or sender_login
         author_name  = c.get("author", {}).get("name", "")
         author_email = c.get("author", {}).get("email", "")
 
