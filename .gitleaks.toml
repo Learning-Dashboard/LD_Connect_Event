@@ -1,0 +1,10 @@
+title = "Gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Ignore generated Gitleaks baseline report"
+paths = [
+  '''^\.gitleaks-baseline\.json$'''
+]

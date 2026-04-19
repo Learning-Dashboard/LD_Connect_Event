@@ -63,6 +63,10 @@ def create_app():
     app.register_blueprint(github_bp)
     app.register_blueprint(taiga_bp)
     app.register_blueprint(excel_bp)
+
+    app.register_blueprint(github_bp, url_prefix="/webhooks", name="github_bp_prefixed")
+    app.register_blueprint(taiga_bp, url_prefix="/webhooks", name="taiga_bp_prefixed")
+    app.register_blueprint(excel_bp, url_prefix="/webhooks", name="excel_bp_prefixed")
     _register_error_handlers(app)
     _log_credentials_config_status()
     logger.info("Flask created and Blueprints registered successfully.")

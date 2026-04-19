@@ -1,5 +1,4 @@
 import argparse
-import re
 import requests
 from pymongo import UpdateOne
 from datetime import datetime, timezone
@@ -13,8 +12,19 @@ from config.logger_config import setup_logging
 
 from config.settings import TAIGA_API_URL
 
+from utils.pattern_detector import PatternDetector
+from datasources.requests.taiga_api_call import milestone_details, milestone_stats, userstory_details
+
 setup_logging()
 logger = logging.getLogger(__name__)
+
+
+def first_non_empty(*values, default=""):
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return default
+
 
 
 def parse_dt(s: str) -> datetime:
@@ -136,33 +146,49 @@ def task_from_api(j: dict, prj: str) -> dict:
     Converts a task JSON object from the Taiga API to a MongoDB document schema.
     """
     m = j.get("milestone_extra_info") or {}
+    project_id = (j.get("project_extra_info") or {}).get("id")
+    milestone_id = j.get("milestone")
+    milestone_info = milestone_details(project_id, milestone_id, prj)
+    milestone_stats_data = milestone_stats(project_id, milestone_id, prj)
+    userstory_id = j.get("user_story")
     us = j.get("user_story_extra_info") or {}
-    return {
-        "task_id": j["id"],
-        "action_type": "import",
-        "assigned_by": "backfill",
-        "assigned_to": (j.get("assigned_to_extra_info") or {}).get("username"),
-        "created_date": j["created_date"],
+    userstory_is_closed = us.get("is_closed")
+    userstory_info = (
+        userstory_details(project_id, userstory_id, prj)
+        if userstory_id and userstory_is_closed in (None, "")
+        else {}
+    )
+    doc = {
+        "task_id":        j["id"],
+        "action_type":    "import",
+        "assigned_by":    "backfill",
+        "assigned_to":    (j.get("assigned_to_extra_info") or {}).get("username"),
+        "created_date":   j["created_date"],
         "custom_attributes": j.get("custom_attributes_values") or {},
-        "estimated_finish": m.get("estimated_finish"),
-        "estimated_start": m.get("estimated_start"),
-        "event_type": "task",
-        "finished_date": j["finished_date"],
-        "is_closed": j["status_extra_info"]["is_closed"],
-        "milestone_closed": m.get("closed"),
-        "milestone_created_date": m.get("created_date"),
-        "milestone_id": j.get("milestone"),
-        "milestone_modified_date": m.get("modified_date"),
-        "milestone_name": m.get("name"),
-        "modified_date": j["modified_date"],
-        "prj": prj,
-        "reference": j["ref"],
-        "status": j["status_extra_info"]["name"],
-        "subject": j["subject"],
-        "team_name": j["project_extra_info"]["name"],
-        "userstory_id": j.get("user_story"),
-        "userstory_is_closed": us.get("is_closed"),
+        "estimated_finish": first_non_empty(m.get("estimated_finish"), milestone_info.get("estimated_finish")),
+        "estimated_start":  first_non_empty(m.get("estimated_start"), milestone_info.get("estimated_start")),
+        "event_type":     "task",
+        "finished_date":  j["finished_date"],
+        "is_closed":      j["status_extra_info"]["is_closed"],
+        "milestone_closed": bool(first_non_empty(m.get("closed"), milestone_info.get("milestone_closed"), False)),
+        "milestone_created_date": first_non_empty(m.get("created_date"), milestone_info.get("milestone_created_date")),
+        "milestone_id":   milestone_id,
+        "milestone_modified_date": first_non_empty(m.get("modified_date"), milestone_info.get("milestone_modified_date")),
+        "milestone_name": first_non_empty(m.get("name"), milestone_info.get("milestone_name")),
+        "modified_date":  j["modified_date"],
+        "prj":            prj,
+        "reference":      j["ref"],
+        "status":         j["status_extra_info"]["name"],
+        "subject":        j["subject"],
+        "team_name":      j["project_extra_info"]["name"],
+        "userstory_id":   j.get("user_story"),
+        "userstory_is_closed": first_non_empty(
+            userstory_is_closed, userstory_info.get("userstory_is_closed")
+        ),
     }
+    doc.update(milestone_stats_data)
+    return doc
+
 
 
 def issue_from_api(j: dict, prj: str) -> dict:
@@ -216,29 +242,33 @@ def userstory_from_api(j: dict, prj: str) -> dict:
     Converts an userstory JSON object from the Taiga API to a MongoDB document schema.
     """
     m = j.get("milestone_extra_info") or {}
+    project_id = (j.get("project_extra_info") or {}).get("id")
+    milestone_id = j.get("milestone")
+    milestone_info = milestone_details(project_id, milestone_id, prj)
+    milestone_stats_data = milestone_stats(project_id, milestone_id, prj)
     desc = j.get("description") or ""
-    pattern = bool(re.search(r"as\s+.*?\s+i want\s+.*?\s+so that\s+.*", desc, re.I))
-    raw_points = j.get("points")  # puede ser list | "" | None
+    pattern = PatternDetector.detect_pattern(desc)
+    raw_points = j.get("points")          # puede ser list | "" | None
     if isinstance(raw_points, list):
         total = sum((p.get("value") or 0) for p in raw_points)
     else:
         total = 0
 
-    return {
+    doc = {
         "userstory_id": j["id"],
         "action_type": "import",
         "assigned_by": "backfill",
         "created_date": j["created_date"],
         "custom_attributes": j.get("custom_attributes_values") or {},
-        "estimated_finish": m.get("estimated_finish"),
-        "estimated_start": m.get("estimated_start"),
-        "event_type": "userstory",
-        "is_closed": (j.get("status_extra_info") or {}).get("is_closed"),
-        "milestone_closed": m.get("closed"),
-        "milestone_created_date": m.get("created_date"),
-        "milestone_id": j.get("milestone"),
-        "milestone_modified_date": m.get("modified_date"),
-        "milestone_name": m.get("name"),
+        "estimated_finish": first_non_empty(m.get("estimated_finish"), milestone_info.get("estimated_finish")),
+        "estimated_start":  first_non_empty(m.get("estimated_start"), milestone_info.get("estimated_start")),
+        "event_type":  "userstory",
+        "is_closed":   (j.get("status_extra_info") or {}).get("is_closed"),
+        "milestone_closed": bool(first_non_empty(m.get("closed"), milestone_info.get("milestone_closed"), False)),
+        "milestone_created_date": first_non_empty(m.get("created_date"), milestone_info.get("milestone_created_date")),
+        "milestone_id":   milestone_id,
+        "milestone_modified_date": first_non_empty(m.get("modified_date"), milestone_info.get("milestone_modified_date")),
+        "milestone_name": first_non_empty(m.get("name"), milestone_info.get("milestone_name")),
         "modified_date": j["modified_date"],
         "pattern": pattern,
         "priority": (j.get("custom_attributes_values") or {}).get("Priority"),
@@ -248,6 +278,8 @@ def userstory_from_api(j: dict, prj: str) -> dict:
         "team_name": j["project_extra_info"]["name"],
         "total_points": total,
     }
+    doc.update(milestone_stats_data)
+    return doc
 
 
 ENTITY_ENDPOINT = {
@@ -316,16 +348,12 @@ def main(argv: list[str] | None = None):
     total = 0
     for event in events:  # Iterate over the events to backfill
         endpoint, converter, key = ENTITY_ENDPOINT[event]
-        raw = fetch_entities(
-            event, pid, start, end
-        )  # Get the raw data from the Taiga API for the event
-        docs = [
-            converter(r, ns.prj) for r in raw
-        ]  # Convert the raw data to the MongoDB schema using the converter function
-        coll = get_collection(
-            f"taiga_{ns.prj}.{event}"
-        )  # Get the MongoDB collection for the event
-        n = upsert(coll, docs, key)  # Upsert the documents
+        raw = fetch_entities(event, pid, start, end)   # Get the raw data from the Taiga API for the event
+        docs = [converter(r, ns.prj) for r in raw]        # Convert the raw data to the MongoDB schema using the converter function
+        # Usar el nombre plural correcto para la colección de userstories
+        collection_name = f"taiga_{ns.prj}.userstories" if event == "userstory" else f"taiga_{ns.prj}.tasks" if event == "task" else f"taiga_{ns.prj}.epics" if event == "epic" else f"taiga_{ns.prj}.{event}"
+        coll = get_collection(collection_name)  # Get the MongoDB collection for the event
+        n    = upsert(coll, docs, key)                        # Upsert the documents
         total += n
         logger.info(" • %s → %d documents", event, n)
 
