@@ -26,19 +26,16 @@ import os
 import sys
 import requests
 from typing import List, Dict
-from config.settings import TAIGA_API_URL
 
-API_BASE = TAIGA_API_URL
-
-
-
+API_BASE = "https://api.taiga.io/api/v1"
 
 
 def get_by_slug(slug: str, token: str) -> Dict:
     """Retorna el JSON del projecte pel seu slug (una sola petició)."""
     h = {"Authorization": f"Bearer {token}"}
-    r = requests.get(f"{API_BASE}/projects/by_slug", headers=h,
-                     params={"slug": slug}, timeout=10)
+    r = requests.get(
+        f"{API_BASE}/projects/by_slug", headers=h, params={"slug": slug}, timeout=10
+    )
     if r.status_code == 404:
         sys.exit(f"Slug «{slug}» no existeix o no és visible per aquest usuari.")
     r.raise_for_status()
@@ -49,10 +46,11 @@ def list_user_projects(token: str) -> List[Dict]:
     """Llista tots els projectes on l’usuari autenticat és membre."""
     h = {
         "Authorization": f"Bearer {token}",
-        "x-disable-pagination": "True",   # rebem tot en una sola resposta
+        "x-disable-pagination": "True",  # rebem tot en una sola resposta
     }
-    r = requests.get(f"{API_BASE}/projects", headers=h,
-                     params={"member": "me"}, timeout=10)
+    r = requests.get(
+        f"{API_BASE}/projects", headers=h, params={"member": "me"}, timeout=10
+    )
     r.raise_for_status()
     return r.json()
 
@@ -76,12 +74,20 @@ def main(argv: List[str] | None = None) -> None:
         description="Fetch Taiga project id by slug or by display name."
     )
     ap.add_argument("--slug", help="Slug exacte del projecte (mètode preferit).")
-    ap.add_argument("--name",
-                    help="Nom visible del projecte (case-insensitive). S'usa si --slug no és present.")
-    ap.add_argument("--user", default=os.getenv("TAIGA_USERNAME"),
-                    help="Usuari Taiga (o variable d’entorn TAIGA_USERNAME).")
-    ap.add_argument("--password", default=os.getenv("TAIGA_PASSWORD"),
-                    help="Contrasenya Taiga (o variable d’entorn TAIGA_PASSWORD).")
+    ap.add_argument(
+        "--name",
+        help="Nom visible del projecte (case-insensitive). S'usa si --slug no és present.",
+    )
+    ap.add_argument(
+        "--user",
+        default=os.getenv("TAIGA_USERNAME"),
+        help="Usuari Taiga (o variable d’entorn TAIGA_USERNAME).",
+    )
+    ap.add_argument(
+        "--password",
+        default=os.getenv("TAIGA_PASSWORD"),
+        help="Contrasenya Taiga (o variable d’entorn TAIGA_PASSWORD).",
+    )
     args = ap.parse_args(argv)
 
     # Validacions bàsiques
@@ -89,8 +95,9 @@ def main(argv: List[str] | None = None) -> None:
         ap.error("Cal indicar --slug o --name")
 
     if not (args.user and args.password):
-        ap.error("Credencials requerides: --user/--password o variables env TAIGA_USERNAME/TAIGA_PASSWORD")
-
+        ap.error(
+            "Credencials requerides: --user/--password o variables env TAIGA_USERNAME/TAIGA_PASSWORD"
+        )
 
     # 2. Recuperació del projecte
     if args.slug:
@@ -104,4 +111,4 @@ def main(argv: List[str] | None = None) -> None:
 
     # 3. Resultat final
     print("\n===== RESULTAT =====")
-    print(f"Nom del projecte : {p
+    print(f"Nom del projecte : {project['name']}")

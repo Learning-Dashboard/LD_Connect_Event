@@ -1,25 +1,25 @@
-version: "3.9"
-
 services:
-  LD_connect:
+  ld_connect:
     build:
-      context: ./docker/LDCONNECT        
+      context: .
       dockerfile: Dockerfile
     container_name: LDConnect
     environment:
       - EVAL_HOST=ld_eval
       - EVAL_PORT=5001
     env_file:
-      - ./docker/LDCONNECT/.env         
+      - .env
+    volumes:
+      - ./config_files:/app/config_files:ro
     networks:
-      - qrapids                 
+      - qrapids
     depends_on:
-      mongodb:                   
+      mongodb:
         condition: service_started
     ports:
-      - "127.0.0.1:5000:5000"    
+      - "127.0.0.1:5000:5000"
 
 
 networks:
   qrapids:
-    external: true              
+    external: true

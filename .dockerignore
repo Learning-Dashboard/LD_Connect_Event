@@ -1,0 +1,33 @@
+# Environment and secrets
+.env
+*.env
+
+# Version control
+.git/
+.gitignore
+
+# IDE / editor
+.vscode/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+env/
+myenv/
+venv/
+.venv/
+
+# Docker files (not needed inside the image)
+docker-compose.yml
+
+# Documentation and non-runtime files
+README.md
+LICENSE
+template.env
+
+# Tests and deprecated code
+test.py
+deprecated/
