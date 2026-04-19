@@ -152,7 +152,12 @@ def task_from_api(j: dict, prj: str) -> dict:
     milestone_stats_data = milestone_stats(project_id, milestone_id, prj)
     userstory_id = j.get("user_story")
     us = j.get("user_story_extra_info") or {}
-    userstory_info = userstory_details(project_id, userstory_id, prj) if userstory_id else {}
+    userstory_is_closed = us.get("is_closed")
+    userstory_info = (
+        userstory_details(project_id, userstory_id, prj)
+        if userstory_id and userstory_is_closed in (None, "")
+        else {}
+    )
     doc = {
         "task_id":        j["id"],
         "action_type":    "import",
@@ -177,7 +182,9 @@ def task_from_api(j: dict, prj: str) -> dict:
         "subject":        j["subject"],
         "team_name":      j["project_extra_info"]["name"],
         "userstory_id":   j.get("user_story"),
-        "userstory_is_closed": first_non_empty(us.get("is_closed"), userstory_info.get("userstory_is_closed")),
+        "userstory_is_closed": first_non_empty(
+            userstory_is_closed, userstory_info.get("userstory_is_closed")
+        ),
     }
     doc.update(milestone_stats_data)
     return doc

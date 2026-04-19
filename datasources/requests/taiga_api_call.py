@@ -2,7 +2,11 @@ import logging
 import requests
 from datetime import datetime, timedelta, timezone
 from utils.taiga_token.taiga_auth import get_taiga_token
-from config.credentials_loader import resolve
+from config.credentials_loader import (
+    CredentialsConfigError,
+    ProjectCredentialsNotFoundError,
+    resolve,
+)
 
 from config.settings import TAIGA_API_URL
 
@@ -14,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 _CACHE = {}  # key = (project_id, milestone_id) -> (timestamp, stats)
 MILESTONE_TIMEOUT = (3, 8)
+TAIGA_LOOKUP_ERRORS = (
+    requests.exceptions.RequestException,
+    CredentialsConfigError,
+    ProjectCredentialsNotFoundError,
+)
 
 
 def _empty_stats():
@@ -48,14 +57,25 @@ def milestone_details(project_id: str, milestone_id: str, prj: str):
         return {}
 
     key = (project_id, milestone_id)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if key in _DETAILS_CACHE and now - _DETAILS_CACHE[key][0] < TTL:
         return _DETAILS_CACHE[key][1]
 
-    headers = _build_taiga_headers(prj)
-    url = f"{TAIGA_API_URL}/milestones/{milestone_id}"
-    r = requests.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
-    r.raise_for_status()
+    try:
+        headers = _build_taiga_headers(prj)
+        url = f"{TAIGA_API_URL}/milestones/{milestone_id}"
+        r = requests.get(
+            url, params={"project": project_id}, headers=headers, timeout=(1, 5)
+        )
+        r.raise_for_status()
+    except TAIGA_LOOKUP_ERRORS as exc:
+        logger.warning(
+            "Failed to fetch milestone details for project %s milestone %s: %s",
+            project_id,
+            milestone_id,
+            exc,
+        )
+        return {}
 
     js = r.json()
     details = {
@@ -79,14 +99,25 @@ def userstory_details(project_id: str, userstory_id: str, prj: str):
         return {}
 
     key = (project_id, userstory_id)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if key in _USERSTORY_CACHE and now - _USERSTORY_CACHE[key][0] < TTL:
         return _USERSTORY_CACHE[key][1]
 
-    headers = _build_taiga_headers(prj)
-    url = f"{TAIGA_API_URL}/userstories/{userstory_id}"
-    r = requests.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
-    r.raise_for_status()
+    try:
+        headers = _build_taiga_headers(prj)
+        url = f"{TAIGA_API_URL}/userstories/{userstory_id}"
+        r = requests.get(
+            url, params={"project": project_id}, headers=headers, timeout=(1, 5)
+        )
+        r.raise_for_status()
+    except TAIGA_LOOKUP_ERRORS as exc:
+        logger.warning(
+            "Failed to fetch user story details for project %s user story %s: %s",
+            project_id,
+            userstory_id,
+            exc,
+        )
+        return {}
 
     js = r.json()
     details = {
@@ -109,16 +140,26 @@ def milestone_stats(project_id: str, milestone_id: str, prj: str):
     if key in _CACHE and now - _CACHE[key][0] < TTL:
         return _CACHE[key][1]
 
-    headers = _build_taiga_headers(prj)
+    try:
+        headers = _build_taiga_headers(prj)
+        url = f"{TAIGA_API_URL}/milestones/{milestone_id}/stats"
+        r = requests.get(
+            url, params={"project": project_id}, headers=headers, timeout=(1, 5)
+        )
+        r.raise_for_status()
+    except TAIGA_LOOKUP_ERRORS as exc:
+        logger.warning(
+            "Failed to fetch milestone stats for project %s milestone %s: %s",
+            project_id,
+            milestone_id,
+            exc,
+        )
+        return _empty_stats()
 
-    url = f"{TAIGA_API_URL}/milestones/{milestone_id}/stats"
-    r   = requests.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
-    r.raise_for_status()  # Raises an exception if the request failed
-
-    js  = r.json()
+    js = r.json()
     stats = {
-        "milestone_total_points": sum(js.get("total_points", {}).values()),
-        "milestone_closed_points": sum(js.get("completed_points", 0)),
+        "milestone_total_points": sum((js.get("total_points") or {}).values()),
+        "milestone_closed_points": sum(js.get("completed_points") or []),
         "milestone_total_userstories": js.get("total_userstories", 0),
         "milestone_completed_userstories": js.get("completed_userstories", 0),
         "milestone_total_tasks": js.get("total_tasks", 0),
