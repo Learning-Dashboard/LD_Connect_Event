@@ -64,8 +64,27 @@ def taiga_webhook():
         logger.info("Deleting document from %s. ID=%s", collection_name, id)
         if not id:
             return jsonify({"error": "No object ID"}), 400
-        coll.delete_one({f"{event_type}_id": id})
-        logger.info("Document with %s=%s has been deleted.", event_type, id)
+        # relateduserstory docs are stored in the same collection/key as userstories
+        delete_key = "userstory_id" if event_type == "relateduserstory" else f"{event_type}_id"
+        result = coll.delete_one({delete_key: id})
+        logger.info(
+           "Delete attempted in %s with %s=%s. deleted_count=%s",
+            collection_name, delete_key, id, result.deleted_count
+        )
+
+        author_login = raw_payload.get("by", {}).get("username", "unknown")
+        logger.info(
+            "Notifying LD_EVAL about deleted event: %s for team with external_id: %s with quality_model: %s",
+            event_type,
+            prj,
+            quality_model,
+        )
+        try:
+            notify_eval_push(event_type, prj, author_login, quality_model)
+        except Exception as e:
+            logger.error("Error notifying LD_EVAL: %s", e)
+            return jsonify({"error": "Failed to notify LD_EVAL"}), 500
+
         return jsonify({"status": "ok"}), 200
 
     # Parse the raw JSON payload using the parse_taiga_event function

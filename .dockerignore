@@ -1,7 +1,6 @@
 # Environment and secrets
 .env
 *.env
-config_files/credentials_config.json
 
 # Version control
 .git/
@@ -22,7 +21,6 @@ venv/
 .venv/
 
 # Docker files (not needed inside the image)
-dockerfile
 docker-compose.yml
 
 # Documentation and non-runtime files

@@ -1,5 +1,5 @@
 # ── Stage 1: install dependencies in a throwaway builder ──────────────
-FROM python:3.9-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Prevent .pyc files and enable unbuffered stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 
 # ── Stage 2: lean runtime image ──────────────────────────────────────
-FROM python:3.9-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 LABEL maintainer="Learning Dashboard team" \
       description="LD Connect Event – webhook ingestion service"
@@ -41,7 +41,7 @@ EXPOSE 5000
 
 # Healthcheck so Docker / Compose can monitor the service
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" || exit 1
 
 # Run gunicorn with the create_app() factory
 CMD ["gunicorn", \

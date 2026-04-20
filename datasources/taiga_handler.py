@@ -1,5 +1,5 @@
 from typing import Dict
-import re
+from utils.pattern_detector import PatternDetector
 
 from datasources.requests.taiga_api_call import milestone_stats
 from utils.datetime_utils import to_madrid_local
@@ -141,36 +141,18 @@ def parse_taiga_task_event(raw_payload: Dict, prj: str) -> Dict:
     is_closed = raw_payload.get("data", {}).get("status", {}).get("is_closed", "")
     status = raw_payload.get("data", {}).get("status", {}).get("name", "")
     created_date = to_madrid_local(raw_payload.get("data", {}).get("created_date", ""))
-    modified_date = to_madrid_local(
-        raw_payload.get("data", {}).get("modified_date", "")
-    )
-    finished_date = to_madrid_local(
-        raw_payload.get("data", {}).get("finished_date", "")
-    )
-    reference = raw_payload.get("data", {}).get("ref", "")
-    milestone_id = raw_payload.get("data", {}).get("milestone", {}).get("id", "")
-    milestone_name = raw_payload.get("data", {}).get("milestone", {}).get("name", "")
-    milestone_closed = (
-        raw_payload.get("data", {}).get("milestone", {}).get("closed", "")
-    )
-    milestone_created_date = (
-        raw_payload.get("data", {}).get("milestone", {}).get("created_date", "")
-    )
-    milestone_created_date = (
-        to_madrid_local(milestone_created_date) if milestone_created_date else ""
-    )
-    milestone_modified_date = (
-        raw_payload.get("data", {}).get("milestone", {}).get("modified_date", "")
-    )
-    milestone_modified_date = (
-        to_madrid_local(milestone_modified_date) if milestone_modified_date else ""
-    )
-    estimated_start = to_madrid_local(
-        raw_payload.get("data", {}).get("milestone", {}).get("estimated_start", "")
-    )
-    estimated_finish = to_madrid_local(
-        raw_payload.get("data", {}).get("milestone", {}).get("estimated_finish", "")
-    )
+    modified_date = to_madrid_local(raw_payload.get("data", {}).get("modified_date", ""))
+    finished_date = to_madrid_local(raw_payload.get("data", {}).get("finished_date", ""))
+    reference=raw_payload.get("data",{}).get("ref", "")
+    milestone_id=raw_payload.get("data",{}).get("milestone",{}).get("id", "")
+    milestone_name=raw_payload.get("data",{}).get("milestone",{}).get("name", "")
+    milestone_closed=bool(raw_payload.get("data",{}).get("milestone",{}).get("closed", False))
+    milestone_created_date=raw_payload.get("data",{}).get("milestone",{}).get("created_date", "")
+    milestone_created_date = to_madrid_local(milestone_created_date) if milestone_created_date else ""
+    milestone_modified_date=raw_payload.get("data",{}).get("milestone",{}).get("modified_date", "")
+    milestone_modified_date = to_madrid_local(milestone_modified_date) if milestone_modified_date else ""
+    estimated_start=to_madrid_local(raw_payload.get("data",{}).get("milestone",{}).get("estimated_start", ""))
+    estimated_finish=to_madrid_local(raw_payload.get("data",{}).get("milestone",{}).get("estimated_finish", ""))
     assigned_by = raw_payload.get("by", {}).get("username", "")
 
     milestone_data = milestone_stats(project_id, milestone_id, prj)
@@ -244,14 +226,36 @@ def parse_taiga_userstory_event(raw_payload: Dict, prj: str) -> Dict:
     if custom_attributes is None:
         custom_attributes = {}
 
-    description = raw_payload.get("data", {}).get("description", "")
-    # If the pattern "AS - A - I WANT - SO THAT" is used in the description, the vañue of pattern will be True, if not, it will be False
-    pattern = r"as\s+(.*?)\s+i want\s+(.*?)\s+so that\s+(.*)"
-    match = re.search(pattern, description, re.IGNORECASE)
-    if match:
-        pattern_in_description = True
+    description= raw_payload.get("data", {}).get("description", "")
+    # Detect BDD pattern (EN/ES/CA)
+    pattern_in_description = PatternDetector.detect_pattern(description)
+
+    # If the userstory has a milestone associated while created, we will get the values, if not, we will set them to None
+    if raw_payload.get("data",{}).get("milestone",{}) is not None:
+
+        milestone_id= raw_payload.get("data",{}).get("milestone",{}).get("id", "")
+        milestone_name= raw_payload.get("data",{}).get("milestone",{}).get("name", "")
+        milestone_closed= bool(raw_payload.get("data",{}).get("milestone",{}).get("closed", False))
+        milestone_created_date= to_madrid_local(raw_payload.get("data",{}).get("milestone",{}).get("created_date", ""))
+        milestone_modified_date= to_madrid_local(raw_payload.get("data",{}).get("milestone",{}).get("modified_date", ""))
+        milestone_modified_date = to_madrid_local(milestone_modified_date) if milestone_modified_date else ""
+        estimated_start= to_madrid_local(raw_payload.get("data",{}).get("milestone",{}).get("estimated_start", ""))
+        estimated_finish= to_madrid_local(raw_payload.get("data",{}).get("milestone",{}).get("estimated_finish", ""))
+
+        milestone_data= milestone_stats(project_id, milestone_id, prj)
+
+
+
     else:
-        pattern_in_description = False
+        milestone_id= ""
+        milestone_name= ""
+        milestone_closed= False
+        milestone_created_date= ""
+        milestone_modified_date= ""
+        estimated_start= ""
+        estimated_finish= ""
+        milestone_data = {}
+
 
     # If the userstory has a milestone associated while created, we will get the values, if not, we will set them to None
     if raw_payload.get("data", {}).get("milestone", {}) is not None:

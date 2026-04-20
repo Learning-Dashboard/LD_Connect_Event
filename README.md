@@ -71,6 +71,9 @@ pip install -r requirements.txt
 # copy sample env and edit credentials / secrets
 cp template.env .env
 
+# create the directory that will contain your per-project API credentials
+mkdir -p config_files
+
 # run development server (single worker)
 python app.py
 ```
@@ -91,8 +94,13 @@ docker compose up -d --build ld_connect
 ```
 
 * Exposes the service on port **5000** inside the container
+* Mounts `./config_files` into `/app/config_files` as read-only
 * Behind Nginx / Traefik, route
   `https://<your-domain>/webhook/{github|taiga|excel}` → `ld_connect:5000`
+
+Before building or starting the service, make sure
+`config_files/credentials_config.json` exists. It is used during local image builds
+and can also be provided at runtime through the `./config_files` mount.
 
 ---
 
@@ -186,7 +194,20 @@ Configured hooks:
 
 ### What's the origin and purpouse of credentials_config.json?
 
-Basically, when LD Connect receives an event from GitHub or Taiga, it often needs to fetch additional details about the event (e.g., commit info, issue details) by calling the respective APIs. To authenticate these API calls, LD Connect uses tokens that are specific to each project or team. The `credentials_config.json` file serves as a mapping between project identifiers (like "TeamA") and their corresponding API tokens. This way, when an event comes in with a `prj` parameter, LD Connect can look up the correct token to use for any API requests related to that event.  
+Basically, when LD Connect receives an event from GitHub or Taiga, it often needs to fetch additional details about the event (e.g., commit info, issue details) by calling the respective APIs. To authenticate these API calls, LD Connect uses tokens that are specific to each project or team. The `credentials_config.json` file serves as a mapping between project identifiers (like "TeamA") and their corresponding API tokens. This way, when an event comes in with a `prj` parameter, LD Connect can look up the correct token to use for any API requests related to that event.
+
+Minimal example:
+
+```json
+{
+  "course_a": {
+    "github_token": "ghp_replace_me",
+    "taiga_user": "replace-me",
+    "taiga_password": "replace-me",
+    "teams": ["TeamAlpha", "TeamBeta"]
+  }
+}
+```
 
 ## Can i use LD Connect alone, without LD-infrastructure?
 
