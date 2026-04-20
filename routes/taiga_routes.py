@@ -72,6 +72,15 @@ def taiga_webhook():
             collection_name, delete_key, id, result.deleted_count
         )
 
+        # When a user story is deleted, also remove all its associated tasks
+        if event_type == "userstory":
+            tasks_coll = get_collection(f"taiga_{prj}.tasks")
+            task_result = tasks_coll.delete_many({"userstory_id": id})
+            logger.info(
+                "Cascade-deleted %s task(s) linked to userstory_id=%s in taiga_%s.tasks",
+                task_result.deleted_count, id, prj,
+            )
+
         author_login = raw_payload.get("by", {}).get("username", "unknown")
         logger.info(
             "Notifying LD_EVAL about deleted event: %s for team with external_id: %s with quality_model: %s",
@@ -81,6 +90,9 @@ def taiga_webhook():
         )
         try:
             notify_eval_push(event_type, prj, author_login, quality_model)
+            # Force a task re-eval when tasks were cascade-deleted with the user story
+            if event_type == "userstory":
+                notify_eval_push("task", prj, author_login, quality_model)
         except Exception as e:
             logger.error("Error notifying LD_EVAL: %s", e)
             return jsonify({"error": "Failed to notify LD_EVAL"}), 500
