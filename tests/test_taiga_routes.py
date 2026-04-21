@@ -105,6 +105,43 @@ class TestTaigaWebhook:
         mock_collection.delete_one.assert_called_once_with({"task_id": 99})
         mock_notify.assert_called_once_with("task", "P", "u", None)
 
+    @patch("routes.taiga_routes.notify_eval_push")
+    @patch("routes.taiga_routes.get_collection")
+    @patch("routes.taiga_routes.verify_taiga_signature", return_value=True)
+    def test_delete_userstory_cascades_tasks(
+        self, mock_verify, mock_coll, mock_notify, client
+    ):
+        payload = {
+            "type": "userstory",
+            "action": "delete",
+            "data": {"id": 55, "project": {"name": "P"}},
+            "by": {"username": "u"},
+        }
+        mock_us_collection = MagicMock()
+        mock_tasks_collection = MagicMock()
+
+        def side_effect(name):
+            if name == "taiga_P.userstories":
+                return mock_us_collection
+            if name == "taiga_P.tasks":
+                return mock_tasks_collection
+            return MagicMock()
+
+        mock_coll.side_effect = side_effect
+
+        resp = client.post(
+            "/webhook/taiga?prj=P",
+            data=json.dumps(payload),
+            content_type="application/json",
+            headers={"X-TAIGA-WEBHOOK-SIGNATURE": "x"},
+        )
+        assert resp.status_code == 200
+        mock_us_collection.delete_one.assert_called_once_with({"userstory_id": 55})
+        mock_tasks_collection.delete_many.assert_called_once_with({"userstory_id": 55})
+        assert mock_notify.call_count == 2
+        mock_notify.assert_any_call("userstory", "P", "u", None)
+        mock_notify.assert_any_call("task", "P", "u", None)
+
     @patch("routes.taiga_routes.get_collection")
     @patch("routes.taiga_routes.verify_taiga_signature", return_value=True)
     def test_delete_no_id_returns_400(self, mock_verify, mock_coll, client):
