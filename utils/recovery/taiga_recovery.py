@@ -163,8 +163,14 @@ def task_from_api(j: dict, prj: str) -> dict:
     milestone_stats_data = milestone_stats(project_id, milestone_id, prj)
     userstory_id = j.get("user_story")
     us = j.get("user_story_extra_info") or {}
-    userstory_is_closed = (us.get("status_extra_info") or {}).get("is_closed")
-    userstory_info = userstory_details(project_id, userstory_id, prj) if userstory_id else {}
+    userstory_is_closed = first_non_empty(
+        us.get("is_closed"),
+        (us.get("status_extra_info") or {}).get("is_closed"),
+        default=None,
+    )
+    userstory_info = {}
+    if userstory_id and userstory_is_closed is None:
+        userstory_info = userstory_details(project_id, userstory_id, prj)
     task_id = j.get("id")
     task_info = task_details(project_id, task_id, prj) if task_id else {}
     doc = {

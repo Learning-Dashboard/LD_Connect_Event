@@ -93,13 +93,17 @@ def collect_github(
 
             # Fetch all branches first, then collect commits branch-by-branch.
             branches_url = f"https://api.github.com/repos/{repo_full}/branches?per_page=100"
-            branches = [b["name"] for b in gh_paginated(branches_url, headers)]
+            branches = [b.get("name") for b in gh_paginated(branches_url, headers) if isinstance(b, dict) and b.get("name")]
+            if not branches:
+                branches = [None]
 
             payloads = [] #List to store the payloads of the commits
             seen_shas = set() # Avoid processing the same commit multiple times across branches
             for branch in branches:
                 log_url = f"https://api.github.com/repos/{repo_full}/commits?per_page=100"
-                query_params = {"sha": branch}
+                query_params = {}
+                if branch:
+                    query_params["sha"] = branch
                 if since:
                     query_params["since"] = since
                 if until:
