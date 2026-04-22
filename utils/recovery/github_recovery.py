@@ -36,15 +36,17 @@ def get_organization_repos(org: str, headers: Dict[str, str]) -> List[str]:
     return [repo["name"] for repo in gh_paginated(url, headers)]
 
 
-def gh_paginated(url: str, headers: Dict[str, str]) -> Iterable[Dict]:
-    """
+def gh_paginated(url: str, headers: Dict[str, str], params: Optional[Dict[str, str]] = None) -> Iterable[Dict]:
+    '''
     Gets paginated results from a GitHub API endpoint. With this each call to the API returns a suitable JSON
     """
     while url:
-        r = requests.get(url, headers=headers, timeout=30)
+        r = requests.get(url, headers=headers, params=params, timeout=30)
         r.raise_for_status()
         yield from r.json()
         url = r.links.get("next", {}).get("url")
+        # Link-based pagination already includes query params in next URL.
+        params = None
 
 
 def upsert(coll, docs: list[dict], key: str) -> int:
@@ -81,53 +83,52 @@ def collect_github(
             f"Bearer {GITHUB_TOKEN}"  # Authentication with GitHub API using a token
         )
 
-    counters = {
-        "commits": 0,
-        "issues": 0,
-        "pull_requests": 0,
-    }  # Counter to display the number of documents inserted of each event type
-    author_login = "backfill"  # The author login is always "backfill" for backfilling
+    counters = {"commits": 0, "issues": 0, "pull_requests": 0} #Counter to display the number of documents inserted of each event type
+    author_login = "backfill" # The author login is always "backfill" for backfilling
+    
+    for ev in events: # Start iterating over the events to collect
+        
+        if ev == "commits": #First commits
+            event_name= "push" # The event name for commits is always "push"
 
-    for ev in events:  # Start iterating over the events to collect
+            # Fetch all branches first, then collect commits branch-by-branch.
+            branches_url = f"https://api.github.com/repos/{repo_full}/branches?per_page=100"
+            branches = [b["name"] for b in gh_paginated(branches_url, headers)]
 
-        if ev == "commits":  # First commits
-            event_name = "push"  # The event name for commits is always "push"
+            payloads = [] #List to store the payloads of the commits
+            seen_shas = set() # Avoid processing the same commit multiple times across branches
+            for branch in branches:
+                log_url = f"https://api.github.com/repos/{repo_full}/commits?per_page=100"
+                query_params = {"sha": branch}
+                if since:
+                    query_params["since"] = since
+                if until:
+                    query_params["until"] = until
 
-            log_url = f"https://api.github.com/repos/{repo_full}/commits?per_page=100"
-            if since:
-                log_url += (
-                    f"&since={since}"  # If a SINCE date is proviaded, add it to the URL
-                )
-            if until:
-                log_url += (
-                    f"&until={until}"  # If a UNTIL date is proviaded, add it to the URL
-                )
+                # Iterate over paginated commits for each branch.
+                for c in gh_paginated(log_url, headers, params=query_params):
+                    sha = c.get("sha")
+                    if not sha or sha in seen_shas:
+                        continue
+                    seen_shas.add(sha)
 
-            payloads = []  # List to store the payloads of the commits
-            for c in gh_paginated(
-                log_url, headers
-            ):  # Iterate over the paginated results of the commits and store them in the payloads list under the schema
-                payloads.append(
-                    {
+                    payloads.append({
                         "X-GitHub-Event": "push",
                         "repository": {"full_name": repo_full},
                         "organization": {"login": org},
                         "sender": c["author"] or {},
-                        "commits": [
-                            {
-                                "id": c["sha"],
-                                "url": c["url"],
-                                "message": c["commit"]["message"],
-                                "timestamp": c["commit"]["author"]["date"],
-                                "author": {
-                                    "username": (c["author"] or {}).get("login", ""),
-                                    "name": c["commit"]["author"]["name"],
-                                    "email": c["commit"]["author"]["email"],
-                                },
-                            }
-                        ],
-                    }
-                )
+                        "commits": [{
+                            "id": sha,
+                            "url": c["url"],
+                            "message": c["commit"]["message"],
+                            "timestamp": c["commit"]["author"]["date"],
+                            "author": {
+                                "username": (c["author"] or {}).get("login", ""),
+                                "name":     c["commit"]["author"]["name"],
+                                "email":    c["commit"]["author"]["email"],
+                            },
+                        }],
+                    })
 
             coll = get_collection(f"github_{prj}.commits")  # Collection name to store
             for (

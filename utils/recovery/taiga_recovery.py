@@ -13,7 +13,7 @@ from config.logger_config import setup_logging
 from config.settings import TAIGA_API_URL
 
 from utils.pattern_detector import PatternDetector
-from datasources.requests.taiga_api_call import milestone_details, milestone_stats, userstory_details
+from datasources.requests.taiga_api_call import milestone_details, milestone_stats, userstory_details, task_details
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -152,19 +152,16 @@ def task_from_api(j: dict, prj: str) -> dict:
     milestone_stats_data = milestone_stats(project_id, milestone_id, prj)
     userstory_id = j.get("user_story")
     us = j.get("user_story_extra_info") or {}
-    userstory_is_closed = us.get("is_closed")
-    userstory_info = (
-        userstory_details(project_id, userstory_id, prj)
-        if userstory_id and userstory_is_closed in (None, "")
-        else {}
-    )
+    userstory_info = userstory_details(project_id, userstory_id, prj) if userstory_id else {}
+    task_id = j.get("id")
+    task_info = task_details(project_id, task_id, prj) if task_id else {}
     doc = {
         "task_id":        j["id"],
         "action_type":    "import",
         "assigned_by":    "backfill",
         "assigned_to":    (j.get("assigned_to_extra_info") or {}).get("username"),
         "created_date":   j["created_date"],
-        "custom_attributes": j.get("custom_attributes_values") or {},
+        "custom_attributes": j.get("custom_attributes_values") or task_info.get("custom_attributes_values") or {},
         "estimated_finish": first_non_empty(m.get("estimated_finish"), milestone_info.get("estimated_finish")),
         "estimated_start":  first_non_empty(m.get("estimated_start"), milestone_info.get("estimated_start")),
         "event_type":     "task",
@@ -246,8 +243,20 @@ def userstory_from_api(j: dict, prj: str) -> dict:
     milestone_id = j.get("milestone")
     milestone_info = milestone_details(project_id, milestone_id, prj)
     milestone_stats_data = milestone_stats(project_id, milestone_id, prj)
-    desc = j.get("description") or ""
+    us_info = userstory_details(project_id, j.get("id"), prj)
+    
+    # Use custom_attributes from API response, fallback to userstory detail
+    custom_attrs = j.get("custom_attributes_values") or us_info.get("custom_attributes_values") or {}
+    
+    # Normalize Acceptance Criteria: if list, join as string
+    if isinstance(custom_attrs.get("Acceptance Criteria"), list):
+        custom_attrs = dict(custom_attrs)  # Make a copy
+        ac_list = custom_attrs.get("Acceptance Criteria", [])
+        custom_attrs["Acceptance Criteria"] = " | ".join(str(x) for x in ac_list) if ac_list else ""
+    
+    desc = j.get("description") or us_info.get("description") or ""
     pattern = PatternDetector.detect_pattern(desc)
+    
     raw_points = j.get("points")          # puede ser list | "" | None
     if isinstance(raw_points, list):
         total = sum((p.get("value") or 0) for p in raw_points)
@@ -257,9 +266,9 @@ def userstory_from_api(j: dict, prj: str) -> dict:
     doc = {
         "userstory_id": j["id"],
         "action_type": "import",
-        "assigned_by": "backfill",
-        "created_date": j["created_date"],
-        "custom_attributes": j.get("custom_attributes_values") or {},
+        "assigned_by":   "backfill",
+        "created_date":  j["created_date"],
+        "custom_attributes": custom_attrs,
         "estimated_finish": first_non_empty(m.get("estimated_finish"), milestone_info.get("estimated_finish")),
         "estimated_start":  first_non_empty(m.get("estimated_start"), milestone_info.get("estimated_start")),
         "event_type":  "userstory",
@@ -271,23 +280,64 @@ def userstory_from_api(j: dict, prj: str) -> dict:
         "milestone_name": first_non_empty(m.get("name"), milestone_info.get("milestone_name")),
         "modified_date": j["modified_date"],
         "pattern": pattern,
-        "priority": (j.get("custom_attributes_values") or {}).get("Priority"),
-        "prj": prj,
-        "status": (j.get("status_extra_info") or {}).get("name"),
-        "subject": j["subject"],
-        "team_name": j["project_extra_info"]["name"],
-        "total_points": total,
+        "priority": custom_attrs.get("Priority"),
+        "prj":         prj,
+        "status":      (j.get("status_extra_info") or {}).get("name"),
+        "subject":     j["subject"],
+        "team_name":   j["project_extra_info"]["name"],
+        "total_points":  total,
     }
     doc.update(milestone_stats_data)
     return doc
 
 
 ENTITY_ENDPOINT = {
-    "task": ("tasks", task_from_api, "task_id"),
-    "issue": ("issues", issue_from_api, "issue_id"),
-    "epic": ("epics", epic_from_api, "epic_id"),
-    "userstory": ("userstories", userstory_from_api, "userstory_id"),
-}
+    "task":        ("tasks",        task_from_api,        "task_id"),
+    "issue":       ("issues",       issue_from_api,       "issue_id"),
+    "epic":        ("epics",        epic_from_api,        "epic_id"),
+    "userstory":  ("userstories",  userstory_from_api,   "userstory_id"),
+    }
+
+
+def sync_deleted_entities(event: str, prj: str, project_id: int, start: Optional[datetime] = None, end: Optional[datetime] = None) -> int:
+    '''
+    Removes from MongoDB documents that no longer exist in the Taiga API.
+    This prevents "orphaned" tasks/issues/epics/userstories from inflating metrics after they've been deleted.
+    
+    Returns the count of deleted documents from MongoDB.
+    '''
+    if event not in ENTITY_ENDPOINT:
+        return 0
+    
+    endpoint, converter, key = ENTITY_ENDPOINT[event]
+    
+    # Fetch all current entities from the API
+    raw_api = fetch_entities(event, project_id, start, end)
+    api_ids = set(r["id"] for r in raw_api)
+    
+    # Get the MongoDB collection
+    collection_name = f"taiga_{prj}.userstories" if event == "userstory" else f"taiga_{prj}.tasks" if event == "task" else f"taiga_{prj}.epics" if event == "epic" else f"taiga_{prj}.{event}"
+    coll = get_collection(collection_name)
+    
+    # Find all document IDs in MongoDB
+    mongo_docs = coll.find({}, {key: 1})
+    mongo_ids = set(doc[key] for doc in mongo_docs if key in doc)
+    
+    # Identify IDs that are in MongoDB but not in the current API response
+    deleted_ids = mongo_ids - api_ids
+    
+    if not deleted_ids:
+        return 0
+    
+    # Delete them from MongoDB
+    delete_filter = {key: {"$in": list(deleted_ids)}}
+    result = coll.delete_many(delete_filter)
+    
+    logger.info(f"Removed {result.deleted_count} {event}(s) from MongoDB (no longer in Taiga API)")
+    return result.deleted_count
+
+
+
 
 
 def main(argv: list[str] | None = None):
@@ -345,8 +395,10 @@ def main(argv: list[str] | None = None):
         ns.slug
     )  # Get the project ID using the project name and the token info
 
-    total = 0
-    for event in events:  # Iterate over the events to backfill
+
+    total  = 0
+    total_deleted = 0
+    for event in events: # Iterate over the events to backfill
         endpoint, converter, key = ENTITY_ENDPOINT[event]
         raw = fetch_entities(event, pid, start, end)   # Get the raw data from the Taiga API for the event
         docs = [converter(r, ns.prj) for r in raw]        # Convert the raw data to the MongoDB schema using the converter function
@@ -355,23 +407,28 @@ def main(argv: list[str] | None = None):
         coll = get_collection(collection_name)  # Get the MongoDB collection for the event
         n    = upsert(coll, docs, key)                        # Upsert the documents
         total += n
-        logger.info(" • %s → %d documents", event, n)
-
-        # COMMUNICATION WITH LD_EVAL USING API
-        logger.info(
-            f"Notifying LD_EVAL about event: {event} for team with external_id: {ns.prj} with quality_model: {ns.quality_model}"
-        )
+        print(f" • {event:<12} → {n:>4} documents")          # Print total number of documments
+        
+        # Sync deletions: remove entities that no longer exist in the Taiga API
+        deleted_count = sync_deleted_entities(event, ns.prj, pid, start, end)
+        total_deleted += deleted_count
+        
+        #COMMUNICATION WITH LD_EVAL USING API
+        logger.info(f"Notifying LD_EVAL about event: {event} for team with external_id: {ns.prj} with quality_model: {ns.quality_model}")
         try:
             notify_eval_push(event, ns.prj, "backfill", ns.quality_model)
         except Exception as e:
             logger.error(f"Error notifying LD_EVAL: {e}")
+        
+        
 
-    span = (
-        "all time"
-        if not (start or end)
-        else f"from {ns.from_date or '…'} to {ns.to_date or '…'}"
-    )
-    logger.info("%d documents inserted (%s)", total, span)
+    span = "all time" if not (start or end) else \
+           f"from {ns.from_date or '…'} to {ns.to_date or '…'}"
+    print(f"{total} documents inserted ({span})")
+    if total_deleted > 0:
+        print(f"{total_deleted} documents deleted (orphaned, no longer in Taiga API)")
+
+
 
 
 if __name__ == "__main__":
