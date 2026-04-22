@@ -172,14 +172,17 @@ def task_from_api(j: dict, prj: str) -> dict:
     if userstory_id and userstory_is_closed is None:
         userstory_info = userstory_details(project_id, userstory_id, prj)
     task_id = j.get("id")
-    task_info = task_details(project_id, task_id, prj) if task_id else {}
+    task_custom_attrs = j.get("custom_attributes_values") or {}
+    task_info = {}
+    if task_id and not task_custom_attrs:
+        task_info = task_details(project_id, task_id, prj)
     doc = {
         "task_id":        j["id"],
         "action_type":    "import",
         "assigned_by":    "backfill",
         "assigned_to":    (j.get("assigned_to_extra_info") or {}).get("username"),
         "created_date":   j["created_date"],
-        "custom_attributes": j.get("custom_attributes_values") or task_info.get("custom_attributes_values") or {},
+        "custom_attributes": task_custom_attrs or task_info.get("custom_attributes_values") or {},
         "estimated_finish": first_non_empty(m.get("estimated_finish"), milestone_info.get("estimated_finish")),
         "estimated_start":  first_non_empty(m.get("estimated_start"), milestone_info.get("estimated_start")),
         "event_type":     "task",
