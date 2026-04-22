@@ -37,7 +37,7 @@ def get_organization_repos(org: str, headers: Dict[str, str]) -> List[str]:
 
 
 def gh_paginated(url: str, headers: Dict[str, str], params: Optional[Dict[str, str]] = None) -> Iterable[Dict]:
-    '''
+    """
     Gets paginated results from a GitHub API endpoint. With this each call to the API returns a suitable JSON
     """
     while url:

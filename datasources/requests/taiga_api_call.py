@@ -1,7 +1,6 @@
 import logging
 import requests
-import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from utils.taiga_token.taiga_auth import get_taiga_token
 from config.credentials_loader import resolve
 from config.settings import TAIGA_API_URL, TAIGA_TOKEN
@@ -13,6 +12,19 @@ _US_CUSTOM_ATTR_NAMES_CACHE = {}  # key = project_id -> (timestamp, {attr_id(str
 _TASK_CUSTOM_ATTR_NAMES_CACHE = {}  # key = project_id -> (timestamp, {attr_id(str): attr_name})
 TTL    = timedelta(minutes=1) # Cache time-to-live, set to 5 minutes. Means that if the same request is made within 5 minutes, it will return the cached result instead of making a new API call.
 log = logging.getLogger(__name__)
+logger = log
+TAIGA_LOOKUP_ERRORS = (requests.RequestException,)
+
+
+def _empty_stats():
+    return {
+        "milestone_total_points": 0,
+        "milestone_closed_points": 0,
+        "milestone_total_userstories": 0,
+        "milestone_completed_userstories": 0,
+        "milestone_total_tasks": 0,
+        "milestone_completed_tasks": 0,
+    }
 
 
 def _build_taiga_headers(prj: str):
@@ -45,7 +57,7 @@ def _userstory_custom_attribute_names(project_id: str, prj: str):
         return {}
 
     key = str(project_id)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if key in _US_CUSTOM_ATTR_NAMES_CACHE and now - _US_CUSTOM_ATTR_NAMES_CACHE[key][0] < TTL:
         return _US_CUSTOM_ATTR_NAMES_CACHE[key][1]
 
@@ -91,7 +103,7 @@ def _task_custom_attribute_names(project_id: str, prj: str):
         return {}
 
     key = str(project_id)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if key in _TASK_CUSTOM_ATTR_NAMES_CACHE and now - _TASK_CUSTOM_ATTR_NAMES_CACHE[key][0] < TTL:
         return _TASK_CUSTOM_ATTR_NAMES_CACHE[key][1]
 

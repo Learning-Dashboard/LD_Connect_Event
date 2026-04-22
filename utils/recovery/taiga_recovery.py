@@ -17,6 +17,17 @@ from datasources.requests.taiga_api_call import milestone_details, milestone_sta
 
 setup_logging()
 logger = logging.getLogger(__name__)
+ACCEPTANCE_CRITERIA_KEY = "Acceptance Criteria"
+
+
+def collection_name_for_event(prj: str, event: str) -> str:
+    if event == "userstory":
+        return f"taiga_{prj}.userstories"
+    if event == "task":
+        return f"taiga_{prj}.tasks"
+    if event == "epic":
+        return f"taiga_{prj}.epics"
+    return f"taiga_{prj}.{event}"
 
 
 def first_non_empty(*values, default=""):
@@ -152,6 +163,7 @@ def task_from_api(j: dict, prj: str) -> dict:
     milestone_stats_data = milestone_stats(project_id, milestone_id, prj)
     userstory_id = j.get("user_story")
     us = j.get("user_story_extra_info") or {}
+    userstory_is_closed = (us.get("status_extra_info") or {}).get("is_closed")
     userstory_info = userstory_details(project_id, userstory_id, prj) if userstory_id else {}
     task_id = j.get("id")
     task_info = task_details(project_id, task_id, prj) if task_id else {}
@@ -249,10 +261,10 @@ def userstory_from_api(j: dict, prj: str) -> dict:
     custom_attrs = j.get("custom_attributes_values") or us_info.get("custom_attributes_values") or {}
     
     # Normalize Acceptance Criteria: if list, join as string
-    if isinstance(custom_attrs.get("Acceptance Criteria"), list):
+    if isinstance(custom_attrs.get(ACCEPTANCE_CRITERIA_KEY), list):
         custom_attrs = dict(custom_attrs)  # Make a copy
-        ac_list = custom_attrs.get("Acceptance Criteria", [])
-        custom_attrs["Acceptance Criteria"] = " | ".join(str(x) for x in ac_list) if ac_list else ""
+        ac_list = custom_attrs.get(ACCEPTANCE_CRITERIA_KEY, [])
+        custom_attrs[ACCEPTANCE_CRITERIA_KEY] = " | ".join(str(x) for x in ac_list) if ac_list else ""
     
     desc = j.get("description") or us_info.get("description") or ""
     pattern = PatternDetector.detect_pattern(desc)
@@ -299,7 +311,14 @@ ENTITY_ENDPOINT = {
     }
 
 
-def sync_deleted_entities(event: str, prj: str, project_id: int, start: Optional[datetime] = None, end: Optional[datetime] = None) -> int:
+def sync_deleted_entities(
+    event: str,
+    prj: str,
+    project_id: int,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    raw_api: Optional[List[Dict]] = None,
+) -> int:
     '''
     Removes from MongoDB documents that no longer exist in the Taiga API.
     This prevents "orphaned" tasks/issues/epics/userstories from inflating metrics after they've been deleted.
@@ -309,10 +328,11 @@ def sync_deleted_entities(event: str, prj: str, project_id: int, start: Optional
     if event not in ENTITY_ENDPOINT:
         return 0
     
-    endpoint, converter, key = ENTITY_ENDPOINT[event]
+    _, _, key = ENTITY_ENDPOINT[event]
     
-    # Fetch all current entities from the API
-    raw_api = fetch_entities(event, project_id, start, end)
+    # Reuse pre-fetched entities when available to avoid duplicate API calls.
+    if raw_api is None:
+        raw_api = fetch_entities(event, project_id, start, end)
     api_ids = set(r["id"] for r in raw_api)
     
     # Get the MongoDB collection
@@ -410,7 +430,7 @@ def main(argv: list[str] | None = None):
         print(f" • {event:<12} → {n:>4} documents")          # Print total number of documments
         
         # Sync deletions: remove entities that no longer exist in the Taiga API
-        deleted_count = sync_deleted_entities(event, ns.prj, pid, start, end)
+        deleted_count = sync_deleted_entities(event, ns.prj, pid, start, end, raw_api=raw)
         total_deleted += deleted_count
         
         #COMMUNICATION WITH LD_EVAL USING API
