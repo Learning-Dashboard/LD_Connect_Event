@@ -9,14 +9,14 @@ class PatternDetector:
     # Patrones regex compilados para optimización
     PATTERNS = [
         # English
-        r"\bas\s+[\w\s]+\s+i\s+want\s+[\w\s,.:;!?-]+\s+so\s+that\s+[\w\s,.:;!?-]+",
-        r"\bas\s+[\w\s]+\s+i\s+want\s+[\w\s,.:;!?-]+\s+to\s+[\w\s,.:;!?-]+",
+        r"\bas\s+[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+\s+i\s+want\s+[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+\s+so\s+that\s+[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+",
+        r"\bas\s+[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+\s+i\s+want\s+[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+\s+to\s+[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+",
         
         # Spanish - COMO...QUIERO...
-        r"\bcomo\s+[\w\s]+\s+quiero\s+[\w\s,.:;!?-]+\s+(?:de\s+manera\s+que|de\s+forma\s+que|para|por|porqu[eé]|porque)\s+[\w\s,.:;!?-]+",
+        r"\bcomo\s+[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+\s+quiero\s+[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+\s+(?:de\s+manera\s+que|de\s+forma\s+que|para|por|porqu[eé]|porque)\s+[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+",
         
         # Catalan - COM...VULL...
-        r"\bcom\s+[\w\s]+\s+vull\s+[\w\s,.:;!?-]+\s+(?:de\s+manera\s+que|de\s+forma\s+que|per|perqu[eè]|perqué)\s+[\w\s,.:;!?-]+",
+        r"\bcom\s+(?:a\s+)?[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+\s+vull\s+[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+\s+(?:de\s+manera\s+que|de\s+forma\s+que|per\s+a\s+poder|per\s+poder|per\s+tal\s+de|per\s+tal\s+d[’']|per|perqu[eè]|perqué)\s*[\w\s'àáäâäèéëêìíïîòóöôùúüûñçÀÁÄÂÈÉËÊÌÍÏÎÒÓÖÔÙÚÜÛÑÇ’()\/·,.:;!?-]+",
     ]
     
     # Compilar patrones una sola vez
