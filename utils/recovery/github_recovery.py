@@ -70,6 +70,7 @@ def collect_github(
     since: Optional[str],
     until: Optional[str],
     quality_model: str,
+    github_token: Optional[str] = None,
 ):
     """
     Collects data from a GitHub repository and inserts it into MongoDB. Follows the schema of the LD-Connect project.
@@ -78,9 +79,10 @@ def collect_github(
         f"{org}/{repo}"  # Full name of the repository, e.g. "LD-Connect/ld-connect"
     )
     headers = {"Accept": "application/vnd.github+json"}
-    if GITHUB_TOKEN:
+    effective_token = github_token if github_token is not None else GITHUB_TOKEN
+    if effective_token:
         headers["Authorization"] = (
-            f"Bearer {GITHUB_TOKEN}"  # Authentication with GitHub API using a token
+            f"Bearer {effective_token}"  # Authentication with GitHub API using a token
         )
 
     counters = {"commits": 0, "issues": 0, "pull_requests": 0} #Counter to display the number of documents inserted of each event type

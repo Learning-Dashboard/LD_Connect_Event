@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from routes.github_routes import github_bp
 from routes.taiga_routes import taiga_bp
 from routes.excel_routes import excel_bp
+from routes.recovery_routes import recovery_bp
 from config.credentials_loader import (
     CredentialsConfigError,
     ProjectCredentialsNotFoundError,
@@ -63,6 +64,7 @@ def create_app():
     app.register_blueprint(github_bp)
     app.register_blueprint(taiga_bp)
     app.register_blueprint(excel_bp)
+    app.register_blueprint(recovery_bp)
 
     app.register_blueprint(github_bp, url_prefix="/webhooks", name="github_bp_prefixed")
     app.register_blueprint(taiga_bp, url_prefix="/webhooks", name="taiga_bp_prefixed")

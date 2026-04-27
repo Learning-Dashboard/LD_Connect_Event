@@ -1,5 +1,6 @@
 import logging
 import requests
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from utils.taiga_token.taiga_auth import get_taiga_token
 from config.credentials_loader import resolve
@@ -14,6 +15,17 @@ TTL    = timedelta(minutes=1) # Cache time-to-live, set to 5 minutes. Means that
 log = logging.getLogger(__name__)
 logger = log
 TAIGA_LOOKUP_ERRORS = (requests.RequestException,)
+_TAIGA_TOKEN_OVERRIDE: ContextVar[str | None] = ContextVar("taiga_token_override", default=None)
+
+
+def push_taiga_token_override(token: str | None):
+    """Temporarily override Taiga bearer token for the current request context."""
+    normalized = token.strip() if isinstance(token, str) and token.strip() else None
+    return _TAIGA_TOKEN_OVERRIDE.set(normalized)
+
+
+def pop_taiga_token_override(token_handle):
+    _TAIGA_TOKEN_OVERRIDE.reset(token_handle)
 
 
 def _empty_stats():
@@ -29,6 +41,10 @@ def _empty_stats():
 
 def _build_taiga_headers(prj: str):
     """Return Taiga headers for public, private and SSO deployments."""
+    token_override = _TAIGA_TOKEN_OVERRIDE.get()
+    if token_override:
+        return {"Authorization": f"Bearer {token_override}"}
+
     if TAIGA_TOKEN:
         return {"Authorization": f"Bearer {TAIGA_TOKEN}"}
 
