@@ -294,14 +294,29 @@ class TestMain:
     @patch("utils.recovery.taiga_recovery.get_collection")
     @patch("utils.recovery.taiga_recovery.fetch_entities", return_value=[])
     @patch("utils.recovery.taiga_recovery.get_project_id_by_slug", return_value=42)
+    @patch("utils.recovery.taiga_recovery.get_taiga_token", side_effect=Exception("no auth"))
     def test_main_runs(
-        self, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify
+        self, mock_token, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify
     ):
         from utils.recovery.taiga_recovery import main
 
         main(["--slug", "test-slug", "--prj", "TestPrj", "--events", "task"])
-        mock_slug.assert_called_once_with("test-slug")
+        mock_slug.assert_called_once_with("test-slug", token=None)
         mock_fetch.assert_called_once()
+
+    @patch("utils.recovery.taiga_recovery.notify_eval_push")
+    @patch("utils.recovery.taiga_recovery.upsert", return_value=5)
+    @patch("utils.recovery.taiga_recovery.get_collection")
+    @patch("utils.recovery.taiga_recovery.fetch_entities", return_value=[])
+    @patch("utils.recovery.taiga_recovery.get_project_id_by_slug", return_value=42)
+    @patch("utils.recovery.taiga_recovery.get_taiga_token", return_value="auto_token")
+    def test_main_uses_global_token(
+        self, mock_token, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify
+    ):
+        from utils.recovery.taiga_recovery import main
+
+        main(["--slug", "test-slug", "--prj", "TestPrj", "--events", "task"])
+        mock_slug.assert_called_once_with("test-slug", token="auto_token")
 
     @patch("utils.recovery.taiga_recovery.notify_eval_push")
     @patch("utils.recovery.taiga_recovery.upsert", return_value=2)

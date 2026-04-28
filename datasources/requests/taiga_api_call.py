@@ -4,7 +4,7 @@ from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from utils.taiga_token.taiga_auth import get_taiga_token
 from config.credentials_loader import resolve
-from config.settings import TAIGA_API_URL, TAIGA_TOKEN
+from config.settings import TAIGA_API_URL, TAIGA_TOKEN, TAIGA_USERNAME, TAIGA_PASSWORD
 
 _CACHE = {}                 # key = (project_id, milestone_id) -> (timestamp, stats)
 _DETAILS_CACHE = {}         # key = (project_id, milestone_id) -> (timestamp, details)
@@ -52,8 +52,8 @@ def _build_taiga_headers(prj: str):
         user = resolve(prj, "taiga_user")
         psw = resolve(prj, "taiga_password")
     except KeyError:
-        log.warning("No Taiga credentials configured for project %s; using anonymous requests.", prj)
-        return {}
+        user = TAIGA_USERNAME
+        psw = TAIGA_PASSWORD
 
     if user and psw:
         try:

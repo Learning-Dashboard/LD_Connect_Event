@@ -10,7 +10,8 @@ from database.mongo_client import get_collection
 from routes.API_publisher.API_event_publisher import notify_eval_push
 from config.logger_config import setup_logging
 
-from config.settings import TAIGA_API_URL, TAIGA_TOKEN
+from config.settings import TAIGA_API_URL, TAIGA_TOKEN, TAIGA_USERNAME, TAIGA_PASSWORD
+from utils.taiga_token.taiga_auth import get_taiga_token
 
 from utils.pattern_detector import PatternDetector
 from datasources.requests.taiga_api_call import milestone_details, milestone_stats, userstory_details, task_details
@@ -424,16 +425,12 @@ def main(argv: list[str] | None = None):
     start = parse_dt(ns.from_date) if ns.from_date else None
     end = parse_dt(ns.to_date) if ns.to_date else None
     effective_taiga_token = ns.taiga_token or TAIGA_TOKEN or None
+    if not effective_taiga_token and TAIGA_USERNAME and TAIGA_PASSWORD:
+        try:
+            effective_taiga_token = get_taiga_token(TAIGA_USERNAME, TAIGA_PASSWORD)
+        except Exception as exc:
+            logger.warning("Could not obtain Taiga token from global credentials: %s", exc)
 
-    # Payload with the credentials to get the token
-    # payload = {
-    #     "username": TAIGA_USERNAME,
-    #     "password": TAIGA_PASSWORD,
-    #     "type": "normal"
-    #     }
-
-    # token  = get_token(payload) #Get the token using the credentials provided in the payload
-    # print(f"Using token: {token}") # Print the token to the console, this is for debugging purposes
     pid = get_project_id_by_slug(
         ns.slug,
         token=effective_taiga_token,
