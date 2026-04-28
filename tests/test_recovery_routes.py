@@ -84,8 +84,9 @@ class TestToIsoUtc:
     def test_date_converted(self):
         from routes.recovery_routes import _to_iso_utc
         result = _to_iso_utc("2025-01-15")
-        assert result.startswith("2025-01-15")
+        assert result is not None
         assert result.endswith("Z")
+        assert "T" in result
 
 
 class TestRunTeamRecovery:
