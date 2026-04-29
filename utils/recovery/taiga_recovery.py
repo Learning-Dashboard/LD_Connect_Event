@@ -15,7 +15,7 @@ from utils.taiga_token.taiga_auth import get_taiga_token
 
 from utils.pattern_detector import PatternDetector
 from datasources.requests.taiga_api_call import milestone_details, milestone_stats, userstory_details, task_details
-from datasources.requests.taiga_api_call import push_taiga_token_override, pop_taiga_token_override
+from datasources.requests.taiga_api_call import push_taiga_token_override, pop_taiga_token_override, _auth_header
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def get_username_id(token: str) -> int:
     Given a Taiga API token, return the user ID of the authenticated user.
     With this ID we canfind the projects that the user is a member of.
     """
-    h = {"Authorization": f"Bearer {token}"}
+    h = _auth_header(token)
     r = requests.get(f"{TAIGA_API_URL}/users/me", headers=h, timeout=10)
     r.raise_for_status()
     return r.json()["id"]
@@ -63,9 +63,7 @@ def get_username_id(token: str) -> int:
 def get_project_id_by_slug(slug: str, token: Optional[str] = None) -> int:
     """Resolve Taiga project ID from slug without authentication (public projects)."""
     url = f"{TAIGA_API_URL}/projects/by_slug"
-    headers = {}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    headers = _auth_header(token) if token else {}
     r = requests.get(url, params={"slug": slug}, headers=headers, timeout=10)
     if r.status_code == 200:
         return r.json()["id"]
@@ -84,7 +82,7 @@ def get_project_id_by_username_id(project_name: str, token: str) -> int:
     Given a project name and a Taiga API token, return the project ID.
     With the projecta ID we can fetch the entities (tasks, issues, etc.) of the project.
     """
-    h = {"Authorization": f"Bearer {token}"}
+    h = _auth_header(token)
     uid = get_username_id(token)
     r = requests.get(
         f"{TAIGA_API_URL}/projects",
@@ -119,7 +117,7 @@ def fetch_entities(
         "x-disable-pagination": "True",
     }
     if token:
-        headers["Authorization"] = f"Bearer {token}"
+        headers.update(_auth_header(token))
     params = {"project": project}
     if start:
         params["modified_date__gte"] = (

@@ -18,6 +18,16 @@ TAIGA_LOOKUP_ERRORS = (requests.RequestException,)
 _TAIGA_TOKEN_OVERRIDE: ContextVar[str | None] = ContextVar("taiga_token_override", default=None)
 
 
+def _auth_header(token: str) -> dict:
+    """Return the correct Authorization header for a Taiga token.
+
+    ApplicationTokens contain colons (base64:timestamp:hash) and require the
+    'Application' scheme; regular session tokens use 'Bearer'.
+    """
+    prefix = "Application" if ":" in token else "Bearer"
+    return {"Authorization": f"{prefix} {token}"}
+
+
 def push_taiga_token_override(token: str | None):
     """Temporarily override Taiga bearer token for the current request context."""
     normalized = token.strip() if isinstance(token, str) and token.strip() else None
@@ -43,10 +53,10 @@ def _build_taiga_headers(prj: str):
     """Return Taiga headers for public, private and SSO deployments."""
     token_override = _TAIGA_TOKEN_OVERRIDE.get()
     if token_override:
-        return {"Authorization": f"Bearer {token_override}"}
+        return _auth_header(token_override)
 
     if TAIGA_TOKEN:
-        return {"Authorization": f"Bearer {TAIGA_TOKEN}"}
+        return _auth_header(TAIGA_TOKEN)
 
     try:
         user = resolve(prj, "taiga_user")
