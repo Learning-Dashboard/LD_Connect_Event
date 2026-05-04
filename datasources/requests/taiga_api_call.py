@@ -1,9 +1,10 @@
 import logging
 import requests
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from utils.taiga_token.taiga_auth import get_taiga_token
 from config.credentials_loader import resolve
-from config.settings import TAIGA_API_URL, TAIGA_TOKEN
+from config.settings import TAIGA_API_URL, TAIGA_TOKEN, TAIGA_USERNAME, TAIGA_PASSWORD
 
 _CACHE = {}                 # key = (project_id, milestone_id) -> (timestamp, stats)
 _DETAILS_CACHE = {}         # key = (project_id, milestone_id) -> (timestamp, details)
@@ -14,6 +15,27 @@ TTL    = timedelta(minutes=1) # Cache time-to-live, set to 5 minutes. Means that
 log = logging.getLogger(__name__)
 logger = log
 TAIGA_LOOKUP_ERRORS = (requests.RequestException,)
+_TAIGA_TOKEN_OVERRIDE: ContextVar[str | None] = ContextVar("taiga_token_override", default=None)
+
+
+def _auth_header(token: str) -> dict:
+    """Return the correct Authorization header for a Taiga token.
+
+    ApplicationTokens contain colons (base64:timestamp:hash) and require the
+    'Application' scheme; regular session tokens use 'Bearer'.
+    """
+    prefix = "Application" if ":" in token else "Bearer"
+    return {"Authorization": f"{prefix} {token}"}
+
+
+def push_taiga_token_override(token: str | None):
+    """Temporarily override Taiga bearer token for the current request context."""
+    normalized = token.strip() if isinstance(token, str) and token.strip() else None
+    return _TAIGA_TOKEN_OVERRIDE.set(normalized)
+
+
+def pop_taiga_token_override(token_handle):
+    _TAIGA_TOKEN_OVERRIDE.reset(token_handle)
 
 
 def _empty_stats():
@@ -29,15 +51,19 @@ def _empty_stats():
 
 def _build_taiga_headers(prj: str):
     """Return Taiga headers for public, private and SSO deployments."""
+    token_override = _TAIGA_TOKEN_OVERRIDE.get()
+    if token_override:
+        return _auth_header(token_override)
+
     if TAIGA_TOKEN:
-        return {"Authorization": f"Bearer {TAIGA_TOKEN}"}
+        return _auth_header(TAIGA_TOKEN)
 
     try:
         user = resolve(prj, "taiga_user")
         psw = resolve(prj, "taiga_password")
     except KeyError:
-        log.warning("No Taiga credentials configured for project %s; using anonymous requests.", prj)
-        return {}
+        user = TAIGA_USERNAME
+        psw = TAIGA_PASSWORD
 
     if user and psw:
         try:
