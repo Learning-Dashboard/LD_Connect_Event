@@ -368,8 +368,18 @@ def sync_deleted_entities(
     # Delete them from MongoDB
     delete_filter = {key: {"$in": list(deleted_ids)}}
     result = coll.delete_many(delete_filter)
-    
+
     logger.info(f"Removed {result.deleted_count} {event}(s) from MongoDB (no longer in Taiga API)")
+
+    # Cascade-delete tasks whose parent user story no longer exists
+    if event == "userstory":
+        tasks_coll = get_collection(f"taiga_{prj}.tasks")
+        task_result = tasks_coll.delete_many({"userstory_id": {"$in": list(deleted_ids)}})
+        logger.info(
+            "Cascade-deleted %s task(s) linked to %s deleted userstory/ies in taiga_%s.tasks",
+            task_result.deleted_count, len(deleted_ids), prj,
+        )
+
     return result.deleted_count
 
 

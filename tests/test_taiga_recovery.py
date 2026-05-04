@@ -288,6 +288,72 @@ class TestConverters:
         assert doc["custom_attributes"] == {}
 
 
+class TestSyncDeletedEntities:
+    @patch("utils.recovery.taiga_recovery.get_collection")
+    def test_no_deletions_when_all_present(self, mock_get_coll):
+        from utils.recovery.taiga_recovery import sync_deleted_entities
+
+        mock_coll = MagicMock()
+        mock_coll.find.return_value = [{"userstory_id": 1}, {"userstory_id": 2}]
+        mock_get_coll.return_value = mock_coll
+
+        raw_api = [{"id": 1}, {"id": 2}]
+        deleted = sync_deleted_entities("userstory", "TestPrj", 42, raw_api=raw_api)
+        assert deleted == 0
+        mock_coll.delete_many.assert_not_called()
+
+    @patch("utils.recovery.taiga_recovery.get_collection")
+    def test_deletes_orphaned_userstory(self, mock_get_coll):
+        from utils.recovery.taiga_recovery import sync_deleted_entities
+
+        us_coll = MagicMock()
+        us_coll.find.return_value = [{"userstory_id": 1}, {"userstory_id": 99}]
+        delete_result = MagicMock()
+        delete_result.deleted_count = 1
+        us_coll.delete_many.return_value = delete_result
+
+        tasks_coll = MagicMock()
+        task_delete_result = MagicMock()
+        task_delete_result.deleted_count = 2
+        tasks_coll.delete_many.return_value = task_delete_result
+
+        mock_get_coll.side_effect = [us_coll, tasks_coll]
+
+        raw_api = [{"id": 1}]
+        deleted = sync_deleted_entities("userstory", "TestPrj", 42, raw_api=raw_api)
+
+        assert deleted == 1
+        us_coll.delete_many.assert_called_once_with({"userstory_id": {"$in": [99]}})
+        tasks_coll.delete_many.assert_called_once_with({"userstory_id": {"$in": [99]}})
+
+    @patch("utils.recovery.taiga_recovery.get_collection")
+    def test_task_deletion_does_not_cascade(self, mock_get_coll):
+        from utils.recovery.taiga_recovery import sync_deleted_entities
+
+        task_coll = MagicMock()
+        task_coll.find.return_value = [{"task_id": 10}, {"task_id": 99}]
+        delete_result = MagicMock()
+        delete_result.deleted_count = 1
+        task_coll.delete_many.return_value = delete_result
+
+        mock_get_coll.return_value = task_coll
+
+        raw_api = [{"id": 10}]
+        deleted = sync_deleted_entities("task", "TestPrj", 42, raw_api=raw_api)
+
+        assert deleted == 1
+        # Only one delete_many call — no cascade to another collection
+        assert mock_get_coll.call_count == 1
+
+    @patch("utils.recovery.taiga_recovery.get_collection")
+    def test_unsupported_event_returns_zero(self, mock_get_coll):
+        from utils.recovery.taiga_recovery import sync_deleted_entities
+
+        deleted = sync_deleted_entities("wiki", "TestPrj", 42, raw_api=[])
+        assert deleted == 0
+        mock_get_coll.assert_not_called()
+
+
 class TestMain:
     @patch("utils.recovery.taiga_recovery.notify_eval_push")
     @patch("utils.recovery.taiga_recovery.upsert", return_value=5)
