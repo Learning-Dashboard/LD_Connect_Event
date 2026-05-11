@@ -5,6 +5,7 @@ from config.settings import GITHUB_SIGNATURE_KEY
 from routes.API_publisher.API_event_publisher import notify_eval_push
 from routes.verify_signature.verify_signature_github import verify_github_signature
 from config.logger_config import setup_logging
+from pymongo import UpdateOne
 import logging
 
 setup_logging()
@@ -102,8 +103,8 @@ def github_webhook():
             commit_doc["repo_name"] = parsed_data["repo_name"]
 
             logger.debug("Inserting GitHub commit document for team %s", prj)
-            coll.insert_one(commit_doc)
-            logger.info("Inserting in MongoDB Github commit for team %s", prj)
+            coll.update_one({"sha": commit_doc["sha"]}, {"$set": commit_doc}, upsert=True)
+            logger.info("Upserting in MongoDB Github commit for team %s", prj)
 
         return make_response(jsonify({"status": "ok", "message": "Commits inserted"}), 200)
 
