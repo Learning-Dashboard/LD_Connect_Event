@@ -204,6 +204,56 @@ class TestParseGithubPushEvent:
         result = parse_github_push_event(payload, "P")
         assert result["team_name"] == "UnknownTeam"
 
+    @patch(
+        "datasources.github_handler.fetch_commit_stats",
+        return_value={"total": 381, "additions": 379, "deletions": 2, "is_merge": True},
+    )
+    def test_merge_commit_stores_is_merge_true(self, mock_stats):
+        from datasources.github_handler import parse_github_push_event
+
+        payload = {
+            "organization": {"login": "Org"},
+            "repository": {"full_name": "Org/repo"},
+            "sender": {"login": "merger"},
+            "commits": [
+                {
+                    "id": "mergesha",
+                    "url": "",
+                    "message": "Merge pull request #20 from Org/feature-branch",
+                    "timestamp": "2025-06-15T10:30:00Z",
+                    "author": {"username": "", "name": "GitHub", "email": "noreply@github.com"},
+                }
+            ],
+        }
+        result = parse_github_push_event(payload, "P")
+        commit = result["commits"][0]
+        assert commit["is_merge"] is True
+
+    @patch(
+        "datasources.github_handler.fetch_commit_stats",
+        return_value={"total": 42, "additions": 40, "deletions": 2, "is_merge": False},
+    )
+    def test_regular_commit_stores_is_merge_false(self, mock_stats):
+        from datasources.github_handler import parse_github_push_event
+
+        payload = {
+            "organization": {"login": "Org"},
+            "repository": {"full_name": "Org/repo"},
+            "sender": {"login": "devuser"},
+            "commits": [
+                {
+                    "id": "regularsha",
+                    "url": "",
+                    "message": "fix: resolve task #5",
+                    "timestamp": "2025-06-15T10:30:00Z",
+                    "author": {"username": "devuser", "name": "Dev", "email": "dev@example.com"},
+                }
+            ],
+        }
+        result = parse_github_push_event(payload, "P")
+        commit = result["commits"][0]
+        assert commit["is_merge"] is False
+
 
 class TestParseGithubIssueEvent:
     def test_basic_issue_parsing(self, github_issue_payload):
