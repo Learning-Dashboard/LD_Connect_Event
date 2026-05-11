@@ -27,14 +27,17 @@ def fetch_commit_stats(
     try:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
-        stats = response.json().get("stats", {})
+        data = response.json()
+        stats = data.get("stats", {})
+        parents = data.get("parents", [])
         return {
             "total": stats.get("total", 0),
             "additions": stats.get("additions", 0),
             "deletions": stats.get("deletions", 0),
+            "is_merge": len(parents) >= 2,
         }
     except Exception as exc:
         logger.error(
             "Error fetching commit stats for %s/%s: %s", repo_full_name, commit_sha, exc
         )
-        return {"total": 0, "additions": 0, "deletions": 0}
+        return {"total": 0, "additions": 0, "deletions": 0, "is_merge": False}
