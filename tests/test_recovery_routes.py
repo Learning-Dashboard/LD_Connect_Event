@@ -1,8 +1,33 @@
 """Tests for routes/recovery_routes.py"""
 
 import json
-from unittest.mock import patch, MagicMock
+import pytest
+from unittest.mock import patch
 
+
+# ── Fixture: run background tasks synchronously ───────────────────────────────
+
+@pytest.fixture(autouse=False)
+def sync_executor(monkeypatch):
+    """Replace the async executor so background tasks run synchronously in tests."""
+    class _SyncExecutor:
+        def submit(self, fn, *args, **kwargs):
+            fn(*args, **kwargs)
+
+    monkeypatch.setattr("routes.recovery_routes._recovery_executor", _SyncExecutor())
+
+
+def _start_and_get_status(client, url, payload):
+    """POST to a recovery endpoint, then GET the status. Returns the final job dict."""
+    resp = client.post(url, data=json.dumps(payload), content_type="application/json")
+    assert resp.status_code == 202
+    job_id = resp.get_json()["job_id"]
+    status_resp = client.get(f"/admin/recovery/status/{job_id}")
+    assert status_resp.status_code == 200
+    return status_resp.get_json()
+
+
+# ── URL / slug parsing (unchanged, synchronous helpers) ──────────────────────
 
 class TestParseGithubUrl:
     def test_full_https_url(self):
@@ -43,7 +68,6 @@ class TestParseGithubUrl:
 
     def test_empty_raises(self):
         from routes.recovery_routes import _parse_github_url
-        import pytest
         with pytest.raises(ValueError):
             _parse_github_url("")
 
@@ -67,7 +91,6 @@ class TestParseTaigaSlug:
 
     def test_empty_raises(self):
         from routes.recovery_routes import _parse_taiga_slug
-        import pytest
         with pytest.raises(ValueError):
             _parse_taiga_slug("")
 
@@ -89,24 +112,20 @@ class TestToIsoUtc:
         assert "T" in result
 
 
+# ── Team recovery ─────────────────────────────────────────────────────────────
+
 class TestRunTeamRecovery:
     @patch("routes.recovery_routes.taiga_recovery_main")
     @patch("routes.recovery_routes.collect_github")
-    def test_successful_recovery(self, mock_github, mock_taiga, client):
-        resp = client.post(
-            "/admin/recovery/team",
-            data=json.dumps({
-                "prj": "TestPrj",
-                "github_url": "https://github.com/org/repo",
-                "taiga_url": "my-project",
-            }),
-            content_type="application/json",
-        )
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert data["status"] == "ok"
-        assert any(s["source"] == "github" and s["status"] == "ok" for s in data["steps"])
-        assert any(s["source"] == "taiga" and s["status"] == "ok" for s in data["steps"])
+    def test_successful_recovery(self, mock_github, mock_taiga, client, sync_executor):
+        job = _start_and_get_status(client, "/admin/recovery/team", {
+            "prj": "TestPrj",
+            "github_url": "https://github.com/org/repo",
+            "taiga_url": "my-project",
+        })
+        assert job["status"] == "done"
+        assert any(s["source"] == "github" and s["status"] == "ok" for s in job["steps"])
+        assert any(s["source"] == "taiga" and s["status"] == "ok" for s in job["steps"])
 
     def test_missing_prj_returns_400(self, client):
         resp = client.post(
@@ -144,69 +163,53 @@ class TestRunTeamRecovery:
         assert resp.status_code == 400
 
     @patch("routes.recovery_routes.collect_github", side_effect=Exception("github down"))
-    def test_github_failure_returns_500(self, mock_github, client):
-        resp = client.post(
-            "/admin/recovery/team",
-            data=json.dumps({
-                "prj": "P",
-                "github_url": "org/repo",
-                "taiga_url": "slug",
-            }),
-            content_type="application/json",
-        )
-        assert resp.status_code == 500
-        data = resp.get_json()
-        assert data["status"] == "error"
-        assert data["steps"][0]["source"] == "github"
+    @patch("routes.recovery_routes.taiga_recovery_main")
+    def test_github_failure_continues_to_taiga(self, mock_taiga, mock_github, client, sync_executor):
+        """When GitHub fails the job continues with Taiga and ends as error."""
+        job = _start_and_get_status(client, "/admin/recovery/team", {
+            "prj": "P",
+            "github_url": "org/repo",
+            "taiga_url": "slug",
+        })
+        assert job["status"] == "error"
+        assert any(s["source"] == "github" and s["status"] == "error" for s in job["steps"])
+        assert any(s["source"] == "taiga" and s["status"] == "ok" for s in job["steps"])
 
     @patch("routes.recovery_routes.taiga_recovery_main", side_effect=Exception("taiga down"))
     @patch("routes.recovery_routes.collect_github")
-    def test_taiga_failure_returns_500(self, mock_github, mock_taiga, client):
-        resp = client.post(
-            "/admin/recovery/team",
-            data=json.dumps({
-                "prj": "P",
-                "github_url": "org/repo",
-                "taiga_url": "slug",
-            }),
-            content_type="application/json",
-        )
-        assert resp.status_code == 500
-        data = resp.get_json()
-        assert data["status"] == "error"
-        assert data["steps"][-1]["source"] == "taiga"
+    def test_taiga_failure_marks_job_error(self, mock_github, mock_taiga, client, sync_executor):
+        job = _start_and_get_status(client, "/admin/recovery/team", {
+            "prj": "P",
+            "github_url": "org/repo",
+            "taiga_url": "slug",
+        })
+        assert job["status"] == "error"
+        assert any(s["source"] == "taiga" and s["status"] == "error" for s in job["steps"])
 
     @patch("routes.recovery_routes.taiga_recovery_main", side_effect=SystemExit("1"))
     @patch("routes.recovery_routes.collect_github")
-    def test_taiga_systemexit_returns_500(self, mock_github, mock_taiga, client):
-        resp = client.post(
-            "/admin/recovery/team",
-            data=json.dumps({
-                "prj": "P",
-                "github_url": "org/repo",
-                "taiga_url": "slug",
-            }),
-            content_type="application/json",
-        )
-        assert resp.status_code == 500
+    def test_taiga_systemexit_marks_job_error(self, mock_github, mock_taiga, client, sync_executor):
+        job = _start_and_get_status(client, "/admin/recovery/team", {
+            "prj": "P",
+            "github_url": "org/repo",
+            "taiga_url": "slug",
+        })
+        assert job["status"] == "error"
+        assert any(s["source"] == "taiga" and s["status"] == "error" for s in job["steps"])
 
     @patch("routes.recovery_routes.taiga_recovery_main")
     @patch("routes.recovery_routes.collect_github")
-    def test_with_dates_and_token(self, mock_github, mock_taiga, client):
-        resp = client.post(
-            "/admin/recovery/team",
-            data=json.dumps({
-                "prj": "P",
-                "github_url": "org/repo",
-                "taiga_url": "slug",
-                "from_date": "2025-01-01",
-                "to_date": "2025-12-31",
-                "taiga_token": "my-token",
-                "github_token": "gh-token",
-            }),
-            content_type="application/json",
-        )
-        assert resp.status_code == 200
+    def test_with_dates_and_token(self, mock_github, mock_taiga, client, sync_executor):
+        job = _start_and_get_status(client, "/admin/recovery/team", {
+            "prj": "P",
+            "github_url": "org/repo",
+            "taiga_url": "slug",
+            "from_date": "2025-01-01",
+            "to_date": "2025-12-31",
+            "taiga_token": "my-token",
+            "github_token": "gh-token",
+        })
+        assert job["status"] == "done"
         taiga_args = mock_taiga.call_args[0][0]
         assert "--from-date" in taiga_args
         assert "--to-date" in taiga_args
@@ -215,30 +218,45 @@ class TestRunTeamRecovery:
     @patch("routes.recovery_routes.taiga_recovery_main")
     @patch("routes.recovery_routes.get_organization_repos", return_value=["repo1", "repo2"])
     @patch("routes.recovery_routes.collect_github")
-    def test_org_only_recovers_all_repos(self, mock_github, mock_get_repos, mock_taiga, client):
-        resp = client.post(
-            "/admin/recovery/team",
-            data=json.dumps({
-                "prj": "P",
-                "github_url": "https://github.com/myorg",
-                "taiga_url": "slug",
-            }),
-            content_type="application/json",
-        )
-        assert resp.status_code == 200
+    def test_org_only_recovers_all_repos(self, mock_github, mock_get_repos, mock_taiga, client, sync_executor):
+        job = _start_and_get_status(client, "/admin/recovery/team", {
+            "prj": "P",
+            "github_url": "https://github.com/myorg",
+            "taiga_url": "slug",
+        })
+        assert job["status"] == "done"
         assert mock_github.call_count == 2
 
     @patch("routes.recovery_routes.taiga_recovery_main")
     @patch("routes.recovery_routes.get_organization_repos", return_value=[])
     @patch("routes.recovery_routes.collect_github")
-    def test_no_repos_found_returns_500(self, mock_github, mock_get_repos, mock_taiga, client):
-        resp = client.post(
+    def test_no_repos_found_marks_job_error(self, mock_github, mock_get_repos, mock_taiga, client, sync_executor):
+        job = _start_and_get_status(client, "/admin/recovery/team", {
+            "prj": "P",
+            "github_url": "https://github.com/myorg",
+            "taiga_url": "slug",
+        })
+        assert job["status"] == "error"
+        assert any(s["source"] == "github" and s["status"] == "error" for s in job["steps"])
+
+
+# ── Status endpoint ───────────────────────────────────────────────────────────
+
+class TestGetRecoveryStatus:
+    def test_unknown_job_returns_404(self, client):
+        resp = client.get("/admin/recovery/status/nonexistent-id")
+        assert resp.status_code == 404
+
+    @patch("routes.recovery_routes.taiga_recovery_main")
+    @patch("routes.recovery_routes.collect_github")
+    def test_status_reflects_done(self, mock_github, mock_taiga, client, sync_executor):
+        post_resp = client.post(
             "/admin/recovery/team",
-            data=json.dumps({
-                "prj": "P",
-                "github_url": "https://github.com/myorg",
-                "taiga_url": "slug",
-            }),
+            data=json.dumps({"prj": "P", "github_url": "org/repo", "taiga_url": "slug"}),
             content_type="application/json",
         )
-        assert resp.status_code == 500
+        job_id = post_resp.get_json()["job_id"]
+        status = client.get(f"/admin/recovery/status/{job_id}").get_json()
+        assert status["status"] == "done"
+        assert "steps" in status
+        assert "created_at" in status

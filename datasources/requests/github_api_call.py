@@ -2,10 +2,16 @@
 import logging
 from typing import Dict
 import requests
+from requests.adapters import HTTPAdapter
 from config.credentials_loader import resolve
 from config.settings import GITHUB_API_URL
 
 logger = logging.getLogger(__name__)
+
+_session = requests.Session()
+_adapter = HTTPAdapter(pool_connections=5, pool_maxsize=10)
+_session.mount("http://", _adapter)
+_session.mount("https://", _adapter)
 
 
 def fetch_commit_stats(
@@ -25,7 +31,7 @@ def fetch_commit_stats(
     url = f"{GITHUB_API_URL}/repos/{repo_full_name}/commits/{commit_sha}"
 
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = _session.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
         stats = data.get("stats", {})
