@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 
 class TestFetchCommitStats:
     @patch("datasources.requests.github_api_call.resolve", return_value="ghp_TOKEN")
-    @patch("datasources.requests.github_api_call.requests.get")
+    @patch("datasources.requests.github_api_call._session.get")
     def test_successful_fetch(self, mock_get, mock_resolve):
         from datasources.requests.github_api_call import fetch_commit_stats
 
@@ -22,7 +22,7 @@ class TestFetchCommitStats:
         mock_resolve.assert_called_once_with("TestPrj", "github_token")
 
     @patch("datasources.requests.github_api_call.resolve", return_value="ghp_TOKEN")
-    @patch("datasources.requests.github_api_call.requests.get")
+    @patch("datasources.requests.github_api_call._session.get")
     def test_missing_stats_key(self, mock_get, mock_resolve):
         from datasources.requests.github_api_call import fetch_commit_stats
 
@@ -36,7 +36,7 @@ class TestFetchCommitStats:
 
     @patch("datasources.requests.github_api_call.resolve", return_value="ghp_TOKEN")
     @patch(
-        "datasources.requests.github_api_call.requests.get",
+        "datasources.requests.github_api_call._session.get",
         side_effect=Exception("Network error"),
     )
     def test_network_error_returns_zeros(self, mock_get, mock_resolve):
@@ -46,7 +46,7 @@ class TestFetchCommitStats:
         assert result == {"total": 0, "additions": 0, "deletions": 0, "is_merge": False}
 
     @patch("datasources.requests.github_api_call.resolve", return_value="ghp_TOKEN")
-    @patch("datasources.requests.github_api_call.requests.get")
+    @patch("datasources.requests.github_api_call._session.get")
     def test_uses_correct_url(self, mock_get, mock_resolve):
         from datasources.requests.github_api_call import fetch_commit_stats
 
@@ -61,7 +61,7 @@ class TestFetchCommitStats:
         assert "abc123" in called_url
 
     @patch("datasources.requests.github_api_call.resolve", return_value="ghp_TOKEN")
-    @patch("datasources.requests.github_api_call.requests.get")
+    @patch("datasources.requests.github_api_call._session.get")
     def test_headers_include_token(self, mock_get, mock_resolve):
         from datasources.requests.github_api_call import fetch_commit_stats
 
@@ -75,7 +75,7 @@ class TestFetchCommitStats:
         assert headers["Authorization"] == "token ghp_TOKEN"
 
     @patch("datasources.requests.github_api_call.resolve", return_value="ghp_TOKEN")
-    @patch("datasources.requests.github_api_call.requests.get")
+    @patch("datasources.requests.github_api_call._session.get")
     def test_merge_commit_detected_by_two_parents(self, mock_get, mock_resolve):
         from datasources.requests.github_api_call import fetch_commit_stats
 
@@ -92,7 +92,7 @@ class TestFetchCommitStats:
         assert result["total"] == 381
 
     @patch("datasources.requests.github_api_call.resolve", return_value="ghp_TOKEN")
-    @patch("datasources.requests.github_api_call.requests.get")
+    @patch("datasources.requests.github_api_call._session.get")
     def test_regular_commit_not_detected_as_merge(self, mock_get, mock_resolve):
         from datasources.requests.github_api_call import fetch_commit_stats
 
@@ -108,7 +108,7 @@ class TestFetchCommitStats:
         assert result["is_merge"] is False
 
     @patch("datasources.requests.github_api_call.resolve", return_value="ghp_TOKEN")
-    @patch("datasources.requests.github_api_call.requests.get")
+    @patch("datasources.requests.github_api_call._session.get")
     def test_missing_parents_key_not_merge(self, mock_get, mock_resolve):
         from datasources.requests.github_api_call import fetch_commit_stats
 

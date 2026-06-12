@@ -5,7 +5,6 @@ from config.settings import GITHUB_SIGNATURE_KEY
 from routes.API_publisher.API_event_publisher import notify_eval_push
 from routes.verify_signature.verify_signature_github import verify_github_signature
 from config.logger_config import setup_logging
-from pymongo import UpdateOne
 import logging
 
 setup_logging()
