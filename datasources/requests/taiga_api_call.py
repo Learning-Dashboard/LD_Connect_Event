@@ -1,9 +1,16 @@
 import logging
 import requests
+from requests.adapters import HTTPAdapter
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from utils.taiga_token.taiga_auth import get_taiga_token
 from config.credentials_loader import resolve
-from config.settings import TAIGA_API_URL, TAIGA_TOKEN
+from config.settings import TAIGA_API_URL, TAIGA_TOKEN, TAIGA_USERNAME, TAIGA_PASSWORD
+
+_session = requests.Session()
+_adapter = HTTPAdapter(pool_connections=5, pool_maxsize=10)
+_session.mount("http://", _adapter)
+_session.mount("https://", _adapter)
 
 _CACHE = {}                 # key = (project_id, milestone_id) -> (timestamp, stats)
 _DETAILS_CACHE = {}         # key = (project_id, milestone_id) -> (timestamp, details)
@@ -14,6 +21,27 @@ TTL    = timedelta(minutes=1) # Cache time-to-live, set to 5 minutes. Means that
 log = logging.getLogger(__name__)
 logger = log
 TAIGA_LOOKUP_ERRORS = (requests.RequestException,)
+_TAIGA_TOKEN_OVERRIDE: ContextVar[str | None] = ContextVar("taiga_token_override", default=None)
+
+
+def _auth_header(token: str) -> dict:
+    """Return the correct Authorization header for a Taiga token.
+
+    ApplicationTokens contain colons (base64:timestamp:hash) and require the
+    'Application' scheme; regular session tokens use 'Bearer'.
+    """
+    prefix = "Application" if ":" in token else "Bearer"
+    return {"Authorization": f"{prefix} {token}"}
+
+
+def push_taiga_token_override(token: str | None):
+    """Temporarily override Taiga bearer token for the current request context."""
+    normalized = token.strip() if isinstance(token, str) and token.strip() else None
+    return _TAIGA_TOKEN_OVERRIDE.set(normalized)
+
+
+def pop_taiga_token_override(token_handle):
+    _TAIGA_TOKEN_OVERRIDE.reset(token_handle)
 
 
 def _empty_stats():
@@ -29,15 +57,19 @@ def _empty_stats():
 
 def _build_taiga_headers(prj: str):
     """Return Taiga headers for public, private and SSO deployments."""
+    token_override = _TAIGA_TOKEN_OVERRIDE.get()
+    if token_override:
+        return _auth_header(token_override)
+
     if TAIGA_TOKEN:
-        return {"Authorization": f"Bearer {TAIGA_TOKEN}"}
+        return _auth_header(TAIGA_TOKEN)
 
     try:
         user = resolve(prj, "taiga_user")
         psw = resolve(prj, "taiga_password")
     except KeyError:
-        log.warning("No Taiga credentials configured for project %s; using anonymous requests.", prj)
-        return {}
+        user = TAIGA_USERNAME
+        psw = TAIGA_PASSWORD
 
     if user and psw:
         try:
@@ -64,7 +96,7 @@ def _userstory_custom_attribute_names(project_id: str, prj: str):
     headers = _build_taiga_headers(prj)
     url = f"{TAIGA_API_URL}/userstory-custom-attributes"
     try:
-        r = requests.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
+        r = _session.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
         r.raise_for_status()
         mapping = {str(item.get("id")): item.get("name") for item in (r.json() or []) if item.get("id") and item.get("name")}
     except requests.RequestException as exc:
@@ -83,7 +115,7 @@ def _userstory_custom_values(project_id: str, userstory_id: str, prj: str):
     headers = _build_taiga_headers(prj)
     url = f"{TAIGA_API_URL}/userstories/custom-attributes-values/{userstory_id}"
     try:
-        r = requests.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
+        r = _session.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
         r.raise_for_status()
         raw_values = (r.json() or {}).get("attributes_values") or {}
     except requests.RequestException as exc:
@@ -110,7 +142,7 @@ def _task_custom_attribute_names(project_id: str, prj: str):
     headers = _build_taiga_headers(prj)
     url = f"{TAIGA_API_URL}/task-custom-attributes"
     try:
-        r = requests.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
+        r = _session.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
         r.raise_for_status()
         mapping = {str(item.get("id")): item.get("name") for item in (r.json() or []) if item.get("id") and item.get("name")}
     except requests.RequestException as exc:
@@ -129,7 +161,7 @@ def _task_custom_values(project_id: str, task_id: str, prj: str):
     headers = _build_taiga_headers(prj)
     url = f"{TAIGA_API_URL}/tasks/custom-attributes-values/{task_id}"
     try:
-        r = requests.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
+        r = _session.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
         r.raise_for_status()
         raw_values = (r.json() or {}).get("attributes_values") or {}
     except requests.RequestException as exc:
@@ -159,7 +191,7 @@ def milestone_details(project_id: str, milestone_id: str, prj: str):
     try:
         headers = _build_taiga_headers(prj)
         url = f"{TAIGA_API_URL}/milestones/{milestone_id}"
-        r = requests.get(
+        r = _session.get(
             url, params={"project": project_id}, headers=headers, timeout=(1, 5)
         )
         r.raise_for_status()
@@ -202,7 +234,7 @@ def userstory_details(project_id: str, userstory_id: str, prj: str):
     try:
         headers = _build_taiga_headers(prj)
         url = f"{TAIGA_API_URL}/userstories/{userstory_id}"
-        r = requests.get(
+        r = _session.get(
             url, params={"project": project_id}, headers=headers, timeout=(1, 5)
         )
         r.raise_for_status()
@@ -236,7 +268,7 @@ def task_details(project_id: str, task_id: str, prj: str):
     headers = _build_taiga_headers(prj)
     url = f"{TAIGA_API_URL}/tasks/{task_id}"
     try:
-        r = requests.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
+        r = _session.get(url, params={"project": project_id}, headers=headers, timeout=(1, 5))
         r.raise_for_status()
         js = r.json()
     except requests.RequestException as exc:
@@ -266,7 +298,7 @@ def milestone_stats(project_id: str, milestone_id: str, prj: str):
     try:
         headers = _build_taiga_headers(prj)
         url = f"{TAIGA_API_URL}/milestones/{milestone_id}/stats"
-        r = requests.get(
+        r = _session.get(
             url, params={"project": project_id}, headers=headers, timeout=(1, 5)
         )
         r.raise_for_status()

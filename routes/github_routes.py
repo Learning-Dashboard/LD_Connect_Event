@@ -102,8 +102,8 @@ def github_webhook():
             commit_doc["repo_name"] = parsed_data["repo_name"]
 
             logger.debug("Inserting GitHub commit document for team %s", prj)
-            coll.insert_one(commit_doc)
-            logger.info("Inserting in MongoDB Github commit for team %s", prj)
+            coll.update_one({"sha": commit_doc["sha"]}, {"$set": commit_doc}, upsert=True)
+            logger.info("Upserting in MongoDB Github commit for team %s", prj)
 
         return make_response(jsonify({"status": "ok", "message": "Commits inserted"}), 200)
 

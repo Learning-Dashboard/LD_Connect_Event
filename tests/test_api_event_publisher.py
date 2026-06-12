@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 
 
 class TestNotifyEvalPush:
-    @patch("routes.API_publisher.API_event_publisher.requests.post")
+    @patch("routes.API_publisher.API_event_publisher._session.post")
     def test_successful_notification(self, mock_post):
         from routes.API_publisher.API_event_publisher import notify_eval_push
 
@@ -23,7 +23,7 @@ class TestNotifyEvalPush:
         assert sent_data["author_login"] == "devuser"
         assert sent_data["quality_model"] == "default"
 
-    @patch("routes.API_publisher.API_event_publisher.requests.post")
+    @patch("routes.API_publisher.API_event_publisher._session.post")
     def test_network_error_does_not_raise(self, mock_post):
         import requests as req
         from routes.API_publisher.API_event_publisher import notify_eval_push
@@ -33,7 +33,7 @@ class TestNotifyEvalPush:
         notify_eval_push("push", "P", "u", "qm")
 
     @patch.dict("os.environ", {"EVAL_HOST": "custom-host", "EVAL_PORT": "9999"})
-    @patch("routes.API_publisher.API_event_publisher.requests.post")
+    @patch("routes.API_publisher.API_event_publisher._session.post")
     def test_custom_host_port(self, mock_post):
         from routes.API_publisher.API_event_publisher import notify_eval_push
 

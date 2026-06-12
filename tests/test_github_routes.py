@@ -36,7 +36,11 @@ class TestGithubWebhook:
             headers={"X-GitHub-Event": "push", "X-Hub-Signature-256": "sha256=fake"},
         )
         assert resp.status_code == 200
-        mock_collection.insert_one.assert_called_once()
+        mock_collection.update_one.assert_called_once()
+        call_args, call_kwargs = mock_collection.update_one.call_args
+        assert call_args[0] == {"sha": "abc123"}
+        assert call_args[1]["$set"]["sha"] == "abc123"
+        assert call_kwargs == {"upsert": True}
         mock_notify.assert_called_once()
 
     @patch("routes.github_routes.verify_github_signature", return_value=False)

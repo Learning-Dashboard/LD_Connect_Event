@@ -2,10 +2,16 @@
 import logging
 from typing import Dict
 import requests
+from requests.adapters import HTTPAdapter
 from config.credentials_loader import resolve
 from config.settings import GITHUB_API_URL
 
 logger = logging.getLogger(__name__)
+
+_session = requests.Session()
+_adapter = HTTPAdapter(pool_connections=5, pool_maxsize=10)
+_session.mount("http://", _adapter)
+_session.mount("https://", _adapter)
 
 
 def fetch_commit_stats(
@@ -25,16 +31,19 @@ def fetch_commit_stats(
     url = f"{GITHUB_API_URL}/repos/{repo_full_name}/commits/{commit_sha}"
 
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = _session.get(url, headers=headers, timeout=10)
         response.raise_for_status()
-        stats = response.json().get("stats", {})
+        data = response.json()
+        stats = data.get("stats", {})
+        parents = data.get("parents", [])
         return {
             "total": stats.get("total", 0),
             "additions": stats.get("additions", 0),
             "deletions": stats.get("deletions", 0),
+            "is_merge": len(parents) >= 2,
         }
     except Exception as exc:
         logger.error(
             "Error fetching commit stats for %s/%s: %s", repo_full_name, commit_sha, exc
         )
-        return {"total": 0, "additions": 0, "deletions": 0}
+        return {"total": 0, "additions": 0, "deletions": 0, "is_merge": False}
