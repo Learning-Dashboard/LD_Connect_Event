@@ -1,8 +1,14 @@
 import requests
+from requests.adapters import HTTPAdapter
 import os
 import logging
 
 logger = logging.getLogger(__name__)
+
+_session = requests.Session()
+_adapter = HTTPAdapter(pool_connections=2, pool_maxsize=5)
+_session.mount("http://", _adapter)
+_session.mount("https://", _adapter)
 
 
 def notify_eval_push(
@@ -24,7 +30,7 @@ def notify_eval_push(
     }
 
     try:
-        resp = requests.post(url, json=event_data, timeout=5)
+        resp = _session.post(url, json=event_data, timeout=5)
         resp.raise_for_status()
         logger.info("LD_Eval responded with %s: %s", resp.status_code, resp.json())
     except requests.RequestException as e:

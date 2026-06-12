@@ -1,8 +1,13 @@
 from pymongo import MongoClient
 from config.settings import MONGO_URI, MONGO_DB
 
-# Create the global MongoClient instance.
-client = MongoClient(MONGO_URI)
+client = MongoClient(
+    MONGO_URI,
+    maxPoolSize=25,
+    minPoolSize=1,
+    maxIdleTimeMS=60_000,
+    serverSelectionTimeoutMS=5_000,
+)
 db = client[MONGO_DB]
 
 

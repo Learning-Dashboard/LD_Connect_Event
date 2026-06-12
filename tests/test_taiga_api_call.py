@@ -20,7 +20,7 @@ class TestMilestoneStats:
     @patch(
         "datasources.requests.taiga_api_call.get_taiga_token", return_value="fake_token"
     )
-    @patch("datasources.requests.taiga_api_call.requests.get")
+    @patch("datasources.requests.taiga_api_call._session.get")
     def test_successful_fetch(self, mock_get, mock_token, mock_resolve):
         from datasources.requests.taiga_api_call import milestone_stats
 
@@ -65,7 +65,7 @@ class TestMilestoneStats:
     @patch(
         "datasources.requests.taiga_api_call.get_taiga_token", return_value="fake_token"
     )
-    @patch("datasources.requests.taiga_api_call.requests.get")
+    @patch("datasources.requests.taiga_api_call._session.get")
     def test_caching(self, mock_get, mock_token, mock_resolve):
         from datasources.requests.taiga_api_call import milestone_stats
 
@@ -91,7 +91,8 @@ class TestMilestoneStats:
         "datasources.requests.taiga_api_call.resolve",
         side_effect=lambda prj, f: {"taiga_user": "", "taiga_password": ""}.get(f, ""),
     )
-    @patch("datasources.requests.taiga_api_call.requests.get")
+    @patch("datasources.requests.taiga_api_call.TAIGA_TOKEN", "")
+    @patch("datasources.requests.taiga_api_call._session.get")
     def test_no_credentials_no_auth_header(self, mock_get, mock_resolve):
         from datasources.requests.taiga_api_call import milestone_stats
 
@@ -118,7 +119,7 @@ class TestMilestoneStats:
         ),
     )
     @patch("datasources.requests.taiga_api_call.get_taiga_token", return_value="tok")
-    @patch("datasources.requests.taiga_api_call.requests.get")
+    @patch("datasources.requests.taiga_api_call._session.get")
     def test_http_error_returns_zeros(self, mock_get, mock_token, mock_resolve):
         from datasources.requests.taiga_api_call import milestone_stats
 
@@ -143,6 +144,7 @@ class TestMilestoneStats:
         "datasources.requests.taiga_api_call.get_taiga_token",
         side_effect=requests.exceptions.ReadTimeout("timeout"),
     )
+    @patch("datasources.requests.taiga_api_call.TAIGA_TOKEN", "")
     def test_token_timeout_returns_zeros(self, mock_token, mock_resolve):
         from datasources.requests.taiga_api_call import milestone_stats
 
@@ -161,7 +163,7 @@ class TestMilestoneStats:
         "datasources.requests.taiga_api_call.get_taiga_token", return_value="fake_token"
     )
     @patch(
-        "datasources.requests.taiga_api_call.requests.get",
+        "datasources.requests.taiga_api_call._session.get",
         side_effect=requests.exceptions.ReadTimeout("timeout"),
     )
     def test_stats_timeout_returns_zeros(self, mock_get, mock_token, mock_resolve):
@@ -178,10 +180,11 @@ class TestMilestoneStats:
         "datasources.requests.taiga_api_call.resolve",
         side_effect=KeyError("project not found"),
     )
+    @patch("datasources.requests.taiga_api_call.TAIGA_TOKEN", "")
     @patch(
         "datasources.requests.taiga_api_call.get_taiga_token", return_value="global_tok"
     )
-    @patch("datasources.requests.taiga_api_call.requests.get")
+    @patch("datasources.requests.taiga_api_call._session.get")
     def test_fallback_to_global_credentials(self, mock_get, mock_token, mock_resolve):
         from datasources.requests.taiga_api_call import milestone_stats
 

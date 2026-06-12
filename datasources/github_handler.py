@@ -99,6 +99,7 @@ def parse_github_push_event(raw_payload: Dict, prj: str) -> Dict:
             "verified": verified,
             "verified_reason": verified_reason,
             "stats": commit_stats,
+            "is_merge": commit_stats.get("is_merge", False),
         }
 
         commits_info.append(commit_doc)
