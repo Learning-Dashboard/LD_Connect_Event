@@ -78,19 +78,8 @@ def github_webhook():
 
     coll = get_collection(collection_name)
 
-    # # COMMUNICATION WITH LD_EVAL USING API
-    logger.info(
-        "Notifying LD_EVAL about event: %s for team with external_id: %s with quality_model: %s",
-        event_name,
-        prj,
-        quality_model,
-    )
-    try:
-        notify_eval_push(event_name, prj, author_login, quality_model)
-    except Exception as e:
-        logger.error("Error notifying LD_EVAL: %s", e)
-        return {"status": "error", "message": str(e)}, 500
-
+    # Persist the event in MongoDB FIRST. LD_Eval recomputes metrics as soon as it is
+    # notified, so the data must already be in the collection before we notify it.
     # If it's a commit push, we may have multiple commits. We need to insert each one separately.
     if "commits" in parsed_data:
         for commit_doc in parsed_data["commits"]:
@@ -104,15 +93,14 @@ def github_webhook():
             logger.debug("Inserting GitHub commit document for team %s", prj)
             coll.update_one({"sha": commit_doc["sha"]}, {"$set": commit_doc}, upsert=True)
             logger.info("Upserting in MongoDB Github commit for team %s", prj)
-
-        return make_response(jsonify({"status": "ok", "message": "Commits inserted"}), 200)
+        message = "Commits inserted"
 
     # If it's an issue event, we insert the issue document
     elif "issue" in parsed_data:
         parsed_data["prj"] = prj
         coll.insert_one(parsed_data)
         logger.info("Inserting in MongoDB Github issue for team %s", prj)
-        return make_response(jsonify({"status": "ok", "message": "Issue inserted"}), 200)
+        message = "Issue inserted"
 
     elif "pull_request" in parsed_data:
         parsed_data["prj"] = prj
@@ -120,8 +108,24 @@ def github_webhook():
         logger.info(
             "Inserting in MongoDB Github closed pull request for team %s", prj
         )
-        return {"status": "ok", "message": "Pull request inserted"}, 200
+        message = "Pull request inserted"
 
     # If its neither a commit or a issue
-    coll.insert_one(parsed_data)
-    return {"status": "ok", "message": "Stored event doc"}, 200
+    else:
+        coll.insert_one(parsed_data)
+        message = "Stored event doc"
+
+    # COMMUNICATION WITH LD_EVAL USING API (after the data has been stored)
+    logger.info(
+        "Notifying LD_EVAL about event: %s for team with external_id: %s with quality_model: %s",
+        event_name,
+        prj,
+        quality_model,
+    )
+    try:
+        notify_eval_push(event_name, prj, author_login, quality_model)
+    except Exception as e:
+        logger.error("Error notifying LD_EVAL: %s", e)
+        return {"status": "error", "message": str(e)}, 500
+
+    return make_response(jsonify({"status": "ok", "message": message}), 200)
