@@ -3,6 +3,16 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
+from config.credentials_loader import (
+    ProjectCredentialsNotFoundError,
+    TaigaContext,
+    get_taiga_context,
+)
+
+API_URL = "https://taiga.example/api/v1"
+CTX = TaigaContext(api_url=API_URL, auth_url=f"{API_URL}/auth", token="app:hash")
+AUTH_HEADER = {"Authorization": "Application app:hash"}
+
 
 class TestParseDt:
     def test_date_only(self):
@@ -31,19 +41,24 @@ class TestGetProjectIdBySlug:
         mock_resp.json.return_value = {"id": 42}
         mock_get.return_value = mock_resp
 
-        pid = get_project_id_by_slug("my-slug")
+        pid = get_project_id_by_slug("my-slug", CTX)
         assert pid == 42
+        # The slug is resolved on the Taiga server of the subject
+        assert mock_get.call_args.args[0] == f"{API_URL}/projects/by_slug"
+        assert mock_get.call_args.kwargs["params"] == {"slug": "my-slug"}
+        assert mock_get.call_args.kwargs["headers"] == AUTH_HEADER
 
+    @pytest.mark.parametrize("status_code", [401, 403])
     @patch("utils.recovery.taiga_recovery.requests.get")
-    def test_private_project_exits(self, mock_get):
+    def test_inaccessible_project_exits(self, mock_get, status_code):
         from utils.recovery.taiga_recovery import get_project_id_by_slug
 
         mock_resp = MagicMock()
-        mock_resp.status_code = 401
+        mock_resp.status_code = status_code
         mock_get.return_value = mock_resp
 
-        with pytest.raises(SystemExit, match="private"):
-            get_project_id_by_slug("private-slug")
+        with pytest.raises(SystemExit, match="not accessible"):
+            get_project_id_by_slug("private-slug", CTX)
 
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_not_found_exits(self, mock_get):
@@ -54,7 +69,7 @@ class TestGetProjectIdBySlug:
         mock_get.return_value = mock_resp
 
         with pytest.raises(SystemExit, match="not found"):
-            get_project_id_by_slug("non-existent")
+            get_project_id_by_slug("non-existent", CTX)
 
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_other_error_raises(self, mock_get):
@@ -67,52 +82,24 @@ class TestGetProjectIdBySlug:
         mock_get.return_value = mock_resp
 
         with pytest.raises(requests.HTTPError):
-            get_project_id_by_slug("err-slug")
+            get_project_id_by_slug("err-slug", CTX)
 
-
-class TestGetUsernameId:
+    @patch("utils.taiga_token.taiga_auth.requests.post")
     @patch("utils.recovery.taiga_recovery.requests.get")
-    def test_returns_id(self, mock_get):
-        from utils.recovery.taiga_recovery import get_username_id
+    def test_login_failure_raises_without_anonymous_request(self, mock_get, mock_post):
+        import requests
+        import utils.taiga_token.taiga_auth as auth_mod
+        from utils.recovery.taiga_recovery import get_project_id_by_slug
 
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {"id": 123}
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        auth_mod._TOKENS.clear()
+        mock_post.side_effect = requests.ConnectionError("unreachable")
+        login_ctx = TaigaContext(
+            api_url=API_URL, auth_url=f"{API_URL}/auth", username="u", password="p"
+        )
 
-        uid = get_username_id("tok")
-        assert uid == 123
-
-
-class TestGetProjectIdByUsernameId:
-    @patch("utils.recovery.taiga_recovery.get_username_id", return_value=1)
-    @patch("utils.recovery.taiga_recovery.requests.get")
-    def test_project_found(self, mock_get, mock_uid):
-        from utils.recovery.taiga_recovery import get_project_id_by_username_id
-
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = [
-            {"name": "Other Project", "id": 10},
-            {"name": "My Project", "id": 42},
-        ]
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
-
-        pid = get_project_id_by_username_id("My Project", "tok")
-        assert pid == 42
-
-    @patch("utils.recovery.taiga_recovery.get_username_id", return_value=1)
-    @patch("utils.recovery.taiga_recovery.requests.get")
-    def test_project_not_found_exits(self, mock_get, mock_uid):
-        from utils.recovery.taiga_recovery import get_project_id_by_username_id
-
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = []
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
-
-        with pytest.raises(SystemExit):
-            get_project_id_by_username_id("Nonexistent", "tok")
+        with pytest.raises(requests.ConnectionError):
+            get_project_id_by_slug("my-slug", login_ctx)
+        mock_get.assert_not_called()
 
 
 class TestFetchEntities:
@@ -125,14 +112,20 @@ class TestFetchEntities:
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
 
-        result = fetch_entities("task", 42)
+        result = fetch_entities("task", 42, CTX)
         assert len(result) == 2
+        assert mock_get.call_args.args[0] == f"{API_URL}/tasks"
+        assert mock_get.call_args.kwargs["params"] == {"project": 42}
+        assert mock_get.call_args.kwargs["headers"] == {
+            "x-disable-pagination": "True",
+            **AUTH_HEADER,
+        }
 
     def test_unsupported_entity_raises(self):
         from utils.recovery.taiga_recovery import fetch_entities
 
         with pytest.raises(ValueError, match="Not supported"):
-            fetch_entities("wiki", 42)
+            fetch_entities("wiki", 42, CTX)
 
     @patch("utils.recovery.taiga_recovery.requests.get")
     def test_fetch_with_date_filters(self, mock_get):
@@ -145,7 +138,7 @@ class TestFetchEntities:
 
         start = parse_dt("2025-01-01")
         end = parse_dt("2025-12-31")
-        fetch_entities("task", 42, start, end)
+        fetch_entities("task", 42, CTX, start, end)
 
         call_params = mock_get.call_args[1]["params"]
         assert "modified_date__gte" in call_params
@@ -298,7 +291,7 @@ class TestSyncDeletedEntities:
         mock_get_coll.return_value = mock_coll
 
         raw_api = [{"id": 1}, {"id": 2}]
-        deleted = sync_deleted_entities("userstory", "TestPrj", 42, raw_api=raw_api)
+        deleted = sync_deleted_entities("userstory", "TestPrj", 42, CTX, raw_api=raw_api)
         assert deleted == 0
         mock_coll.delete_many.assert_not_called()
 
@@ -320,7 +313,7 @@ class TestSyncDeletedEntities:
         mock_get_coll.side_effect = [us_coll, tasks_coll]
 
         raw_api = [{"id": 1}]
-        deleted = sync_deleted_entities("userstory", "TestPrj", 42, raw_api=raw_api)
+        deleted = sync_deleted_entities("userstory", "TestPrj", 42, CTX, raw_api=raw_api)
 
         assert deleted == 1
         us_coll.delete_many.assert_called_once_with({"userstory_id": {"$in": [99]}})
@@ -339,7 +332,7 @@ class TestSyncDeletedEntities:
         mock_get_coll.return_value = task_coll
 
         raw_api = [{"id": 10}]
-        deleted = sync_deleted_entities("task", "TestPrj", 42, raw_api=raw_api)
+        deleted = sync_deleted_entities("task", "TestPrj", 42, CTX, raw_api=raw_api)
 
         assert deleted == 1
         # Only one delete_many call — no cascade to another collection
@@ -349,42 +342,73 @@ class TestSyncDeletedEntities:
     def test_unsupported_event_returns_zero(self, mock_get_coll):
         from utils.recovery.taiga_recovery import sync_deleted_entities
 
-        deleted = sync_deleted_entities("wiki", "TestPrj", 42, raw_api=[])
+        deleted = sync_deleted_entities("wiki", "TestPrj", 42, CTX, raw_api=[])
         assert deleted == 0
         mock_get_coll.assert_not_called()
 
+    @patch("utils.recovery.taiga_recovery.fetch_entities", return_value=[{"id": 1}])
+    @patch("utils.recovery.taiga_recovery.get_collection")
+    def test_fetches_from_the_subject_server_when_raw_api_is_missing(
+        self, mock_get_coll, mock_fetch
+    ):
+        from utils.recovery.taiga_recovery import sync_deleted_entities
 
+        mock_coll = MagicMock()
+        mock_coll.find.return_value = [{"task_id": 1}]
+        mock_get_coll.return_value = mock_coll
+
+        assert sync_deleted_entities("task", "TestPrj", 42, CTX) == 0
+        mock_fetch.assert_called_once_with("task", 42, CTX, None, None)
+
+
+@pytest.mark.usefixtures("sample_credentials_config")
 class TestMain:
     @patch("utils.recovery.taiga_recovery.notify_eval_push")
     @patch("utils.recovery.taiga_recovery.upsert", return_value=5)
     @patch("utils.recovery.taiga_recovery.get_collection")
     @patch("utils.recovery.taiga_recovery.fetch_entities", return_value=[])
     @patch("utils.recovery.taiga_recovery.get_project_id_by_slug", return_value=42)
-    @patch("utils.recovery.taiga_recovery.TAIGA_TOKEN", "")
-    @patch("utils.recovery.taiga_recovery.get_taiga_token", side_effect=Exception("no auth"))
-    def test_main_runs(
-        self, mock_token, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify
-    ):
+    def test_main_runs(self, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify):
         from utils.recovery.taiga_recovery import main
 
-        main(["--slug", "test-slug", "--prj", "TestPrj", "--events", "task"])
-        mock_slug.assert_called_once_with("test-slug", token=None)
-        mock_fetch.assert_called_once()
+        main(["--slug", "test-slug", "--prj", "TeamAlpha", "--events", "task"])
 
+        ctx = get_taiga_context("TeamAlpha")
+        mock_slug.assert_called_once_with("test-slug", ctx)
+        mock_fetch.assert_called_once_with("task", 42, ctx, None, None)
+
+    @pytest.mark.parametrize("team", ["TeamAlpha", "TeamGamma"])
     @patch("utils.recovery.taiga_recovery.notify_eval_push")
     @patch("utils.recovery.taiga_recovery.upsert", return_value=5)
     @patch("utils.recovery.taiga_recovery.get_collection")
     @patch("utils.recovery.taiga_recovery.fetch_entities", return_value=[])
     @patch("utils.recovery.taiga_recovery.get_project_id_by_slug", return_value=42)
-    @patch("utils.recovery.taiga_recovery.TAIGA_TOKEN", "")
-    @patch("utils.recovery.taiga_recovery.get_taiga_token", return_value="auto_token")
-    def test_main_uses_global_token(
-        self, mock_token, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify
+    def test_main_uses_the_taiga_server_of_the_team_subject(
+        self, mock_slug, mock_fetch, mock_coll, mock_upsert, mock_notify, team
     ):
         from utils.recovery.taiga_recovery import main
 
-        main(["--slug", "test-slug", "--prj", "TestPrj", "--events", "task"])
-        mock_slug.assert_called_once_with("test-slug", token="auto_token")
+        main(["--slug", "test-slug", "--prj", team, "--events", "task,epic"])
+
+        ctx = get_taiga_context(team)
+        assert mock_slug.call_args.args == ("test-slug", ctx)
+        assert [c.args[2] for c in mock_fetch.call_args_list] == [ctx, ctx]
+
+    @patch("utils.recovery.taiga_recovery.fetch_entities")
+    @patch("utils.recovery.taiga_recovery.get_project_id_by_slug")
+    def test_main_unknown_team_fails_before_any_request(self, mock_slug, mock_fetch):
+        from utils.recovery.taiga_recovery import main
+
+        with pytest.raises(ProjectCredentialsNotFoundError):
+            main(["--slug", "test-slug", "--prj", "UnknownTeam", "--events", "task"])
+        mock_slug.assert_not_called()
+        mock_fetch.assert_not_called()
+
+    def test_main_rejects_removed_token_option(self):
+        from utils.recovery.taiga_recovery import main
+
+        with pytest.raises(SystemExit):
+            main(["--slug", "s", "--prj", "TeamAlpha", "--taiga-token", "tok"])
 
     @patch("utils.recovery.taiga_recovery.notify_eval_push")
     @patch("utils.recovery.taiga_recovery.upsert", return_value=2)
@@ -401,7 +425,7 @@ class TestMain:
                 "--slug",
                 "s",
                 "--prj",
-                "P",
+                "TeamGamma",
                 "--from-date",
                 "2025-01-01",
                 "--to-date",
@@ -409,3 +433,4 @@ class TestMain:
             ]
         )
         mock_fetch.assert_called()
+        assert all(c.args[3] is not None and c.args[4] is not None for c in mock_fetch.call_args_list)

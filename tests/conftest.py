@@ -9,9 +9,6 @@ import pytest
 # ── Set required env vars BEFORE any application module is imported ──────────
 os.environ.setdefault("GITHUB_SIGNATURE_KEY", "test-github-secret")
 os.environ.setdefault("TAIGA_SIGNATURE_KEY", "test-taiga-secret")
-os.environ.setdefault("TAIGA_API_URL", "https://api.taiga.io/api/v1")
-os.environ.setdefault("TAIGA_USERNAME", "testuser")
-os.environ.setdefault("TAIGA_PASSWORD", "testpass")
 os.environ.setdefault("MONGO_HOST", "localhost")
 os.environ.setdefault("MONGO_PORT", "27017")
 os.environ.setdefault("MONGO_DB", "testdb")
@@ -20,26 +17,58 @@ os.environ.setdefault("MONGO_DB", "testdb")
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 
+OWN_TAIGA_API_URL = "https://taiga.course-a.example/api/v1"
+OWN_TAIGA_AUTH_URL = "https://taiga.course-a.example/api/v1/auth"
+FALLBACK_TAIGA_API_URL = "https://api.taiga.io/api/v1"
+FALLBACK_TAIGA_AUTH_URL = "https://api.taiga.io/api/v1/auth"
+
+
 @pytest.fixture
-def sample_credentials_config(tmp_path):
-    """Create a temporary credentials JSON file and return its path."""
-    data = {
-        "course_a": {
-            "github_token": "ghp_FAKETOKEN123",
-            "taiga_user": "tuser",
-            "taiga_password": "tpass",
-            "teams": ["TeamAlpha", "TeamBeta"],
-        },
-        "course_b": {
-            "github_token": "ghp_FAKETOKEN456",
-            "taiga_user": "",
-            "taiga_password": "",
-            "teams": ["TeamGamma"],
-        },
-    }
-    p = tmp_path / "creds.json"
-    p.write_text(json.dumps(data))
-    return str(p)
+def fallback_taiga(monkeypatch):
+    """Configure the TAIGA_FALLBACK_* settings used by subjects without their own Taiga."""
+    monkeypatch.setattr("config.settings.TAIGA_FALLBACK_API_URL", FALLBACK_TAIGA_API_URL)
+    monkeypatch.setattr("config.settings.TAIGA_FALLBACK_AUTH_URL", FALLBACK_TAIGA_AUTH_URL)
+    monkeypatch.setattr("config.settings.TAIGA_FALLBACK_USERNAME", "fallback_user")
+    monkeypatch.setattr("config.settings.TAIGA_FALLBACK_PASSWORD", "fallback_pass")
+
+
+@pytest.fixture
+def write_credentials(tmp_path, monkeypatch, fallback_taiga):
+    """Return a function that writes a credentials config and points CREDENTIALS_FILE to it."""
+
+    def _write(data) -> str:
+        p = tmp_path / "creds.json"
+        p.write_text(data if isinstance(data, str) else json.dumps(data))
+        monkeypatch.setenv("CREDENTIALS_FILE", str(p))
+        return str(p)
+
+    return _write
+
+
+@pytest.fixture
+def sample_credentials_config(write_credentials):
+    """Credentials config with one subject on its own Taiga and one on the fallback Taiga.
+
+    CREDENTIALS_FILE points to it for the duration of the test. Returns its path.
+    """
+    return write_credentials(
+        {
+            "course_a": {
+                "github_token": "ghp_FAKETOKEN123",
+                "taiga_api_url": OWN_TAIGA_API_URL,
+                "taiga_auth_url": OWN_TAIGA_AUTH_URL,
+                "taiga_token": "app:token:hash",
+                "teams": ["TeamAlpha", "TeamBeta"],
+            },
+            "course_b": {
+                "github_token": "ghp_FAKETOKEN456",
+                "taiga_api_url": "",
+                "taiga_auth_url": "",
+                "taiga_token": "",
+                "teams": ["TeamGamma"],
+            },
+        }
+    )
 
 
 @pytest.fixture

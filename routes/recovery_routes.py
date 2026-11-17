@@ -1,14 +1,15 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timezone
+from functools import partial
 from urllib.parse import urlparse
 
 import logging
 from flask import Blueprint, jsonify, request
 
-from utils.recovery.github_recovery import collect_github, parse_dt, get_organization_repos
+from config.credentials_loader import get_github_token, get_taiga_context
+from utils.recovery.github_recovery import collect_github, parse_dt, get_organization_repos, github_headers
 from utils.recovery.taiga_recovery import main as taiga_recovery_main
 from utils.recovery.job_store import create_job, append_step, finish_job, get_job
-from config.settings import GITHUB_TOKEN
 
 logger = logging.getLogger(__name__)
 
@@ -82,134 +83,64 @@ def _to_iso_utc(value: str | None) -> str | None:
 
 # ── Background tasks ──────────────────────────────────────────────────────────
 
-def _bg_team_recovery(
-    job_id, prj, org, repo, slug,
-    since, until, github_events, taiga_events,
-    quality_model, github_token, from_date, to_date, taiga_token,
-):
-    try:
-        headers = {"Accept": "application/vnd.github+json"}
-        effective_github_token = github_token or GITHUB_TOKEN
-        if effective_github_token:
-            headers["Authorization"] = f"Bearer {effective_github_token}"
-
-        try:
-            repos_to_recover = [repo] if repo else get_organization_repos(org, headers)
-            if not repos_to_recover:
-                raise ValueError(f"No repositories found for organization '{org}'")
-            for repo_name in repos_to_recover:
-                logger.info("GitHub recovery: team=%s repo=%s/%s", prj, org, repo_name)
-                collect_github(
-                    org=org, repo=repo_name, prj=prj,
-                    events=list(github_events), since=since, until=until,
-                    quality_model=quality_model, github_token=effective_github_token,
-                )
-            append_step(job_id, {"source": "github", "status": "ok"})
-        except Exception as exc:
-            logger.exception("GitHub recovery failed for team %s", prj)
-            append_step(job_id, {"source": "github", "status": "error", "error": str(exc)})
-
-        try:
-            taiga_args = [
-                "--slug", slug, "--prj", prj,
-                "--events", ",".join(taiga_events),
-                "--quality-model", quality_model,
-            ]
-            if from_date:
-                taiga_args.extend(["--from-date", from_date])
-            if to_date:
-                taiga_args.extend(["--to-date", to_date])
-            if taiga_token:
-                taiga_args.extend(["--taiga-token", taiga_token])
-
-            logger.info("Taiga recovery: team=%s slug=%s", prj, slug)
-            taiga_recovery_main(taiga_args)
-            append_step(job_id, {"source": "taiga", "status": "ok"})
-        except BaseException as exc:
-            logger.exception("Taiga recovery failed for team %s", prj)
-            append_step(job_id, {"source": "taiga", "status": "error", "error": str(exc)})
-
-    except Exception as exc:
-        logger.exception("Unexpected error in team recovery job %s", job_id)
-        append_step(job_id, {"source": "unknown", "status": "error", "error": str(exc)})
-
-    finally:
-        job = get_job(job_id)
-        steps = job["steps"] if job else []
-        final = "error" if any(s["status"] == "error" for s in steps) else "done"
-        finish_job(job_id, final)
-
-
-def _bg_github_recovery(
+def _github_step(
     job_id, prj, org, repo,
     since, until, github_events, quality_model, github_token,
 ):
     try:
-        headers = {"Accept": "application/vnd.github+json"}
-        effective_github_token = github_token or GITHUB_TOKEN
-        if effective_github_token:
-            headers["Authorization"] = f"Bearer {effective_github_token}"
-
-        try:
-            repos_to_recover = [repo] if repo else get_organization_repos(org, headers)
-            if not repos_to_recover:
-                raise ValueError(f"No repositories found for organization '{org}'")
-            for repo_name in repos_to_recover:
-                logger.info("GitHub recovery: team=%s repo=%s/%s", prj, org, repo_name)
-                collect_github(
-                    org=org, repo=repo_name, prj=prj,
-                    events=list(github_events), since=since, until=until,
-                    quality_model=quality_model, github_token=effective_github_token,
-                )
-            append_step(job_id, {"source": "github", "status": "ok"})
-        except Exception as exc:
-            logger.exception("GitHub recovery failed for team %s", prj)
-            append_step(job_id, {"source": "github", "status": "error", "error": str(exc)})
-
+        repos_to_recover = [repo] if repo else get_organization_repos(org, github_headers(github_token))
+        if not repos_to_recover:
+            raise ValueError(f"No repositories found for organization '{org}'")
+        for repo_name in repos_to_recover:
+            logger.info("GitHub recovery: team=%s repo=%s/%s", prj, org, repo_name)
+            collect_github(
+                org=org, repo=repo_name, prj=prj,
+                events=list(github_events), since=since, until=until,
+                quality_model=quality_model, github_token=github_token,
+            )
+        append_step(job_id, {"source": "github", "status": "ok"})
     except Exception as exc:
-        logger.exception("Unexpected error in github recovery job %s", job_id)
-        append_step(job_id, {"source": "unknown", "status": "error", "error": str(exc)})
-
-    finally:
-        job = get_job(job_id)
-        steps = job["steps"] if job else []
-        final = "error" if any(s["status"] == "error" for s in steps) else "done"
-        finish_job(job_id, final)
+        logger.exception("GitHub recovery failed for team %s", prj)
+        append_step(job_id, {"source": "github", "status": "error", "error": str(exc)})
 
 
-def _bg_taiga_recovery(
+def _taiga_step(
     job_id, prj, slug, taiga_events, quality_model,
-    from_date, to_date, taiga_token,
+    from_date, to_date,
 ):
     try:
-        try:
-            taiga_args = [
-                "--slug", slug, "--prj", prj,
-                "--events", ",".join(taiga_events),
-                "--quality-model", quality_model,
-            ]
-            if from_date:
-                taiga_args.extend(["--from-date", from_date])
-            if to_date:
-                taiga_args.extend(["--to-date", to_date])
-            if taiga_token:
-                taiga_args.extend(["--taiga-token", taiga_token])
+        taiga_args = [
+            "--slug", slug, "--prj", prj,
+            "--events", ",".join(taiga_events),
+            "--quality-model", quality_model,
+        ]
+        if from_date:
+            taiga_args.extend(["--from-date", from_date])
+        if to_date:
+            taiga_args.extend(["--to-date", to_date])
 
-            logger.info("Taiga recovery: team=%s slug=%s", prj, slug)
-            taiga_recovery_main(taiga_args)
-            append_step(job_id, {"source": "taiga", "status": "ok"})
-        except BaseException as exc:
-            logger.exception("Taiga recovery failed for team %s", prj)
-            append_step(job_id, {"source": "taiga", "status": "error", "error": str(exc)})
+        logger.info("Taiga recovery: team=%s slug=%s", prj, slug)
+        taiga_recovery_main(taiga_args)
+        append_step(job_id, {"source": "taiga", "status": "ok"})
+    except BaseException as exc:
+        logger.exception("Taiga recovery failed for team %s", prj)
+        append_step(job_id, {"source": "taiga", "status": "error", "error": str(exc)})
+
+
+def _bg_recovery(job_id, *steps):
+    """Run the steps of a recovery job in order. A failed step does not stop the next one."""
+    try:
+        for step in steps:
+            step(job_id)
 
     except Exception as exc:
-        logger.exception("Unexpected error in taiga recovery job %s", job_id)
+        logger.exception("Unexpected error in recovery job %s", job_id)
         append_step(job_id, {"source": "unknown", "status": "error", "error": str(exc)})
 
     finally:
         job = get_job(job_id)
-        steps = job["steps"] if job else []
-        final = "error" if any(s["status"] == "error" for s in steps) else "done"
+        recorded = job["steps"] if job else []
+        final = "error" if any(s["status"] == "error" for s in recorded) else "done"
         finish_job(job_id, final)
 
 
@@ -243,8 +174,6 @@ def run_team_recovery():
     to_date = payload.get("to_date")
     github_events = payload.get("github_events") or ["commits", "issues", "pull_requests"]
     taiga_events = payload.get("taiga_events") or ["task", "userstory", "issue", "epic"]
-    github_token = (payload.get("github_token") or "").strip() or None
-    taiga_token = (payload.get("taiga_token") or "").strip() or None
 
     try:
         org, repo = _parse_github_url(github_url)
@@ -254,12 +183,26 @@ def run_team_recovery():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    # Resolved before queueing, so an unknown team or a broken subject entry is
+    # reported in this response instead of inside the background job.
+    github_token = get_github_token(prj)
+    get_taiga_context(prj)
+
     job_id = create_job()
     _recovery_executor.submit(
-        _bg_team_recovery,
-        job_id, prj, org, repo, slug,
-        since, until, github_events, taiga_events,
-        quality_model, github_token, from_date, to_date, taiga_token,
+        _bg_recovery,
+        job_id,
+        partial(
+            _github_step,
+            prj=prj, org=org, repo=repo, since=since, until=until,
+            github_events=github_events, quality_model=quality_model,
+            github_token=github_token,
+        ),
+        partial(
+            _taiga_step,
+            prj=prj, slug=slug, taiga_events=taiga_events,
+            quality_model=quality_model, from_date=from_date, to_date=to_date,
+        ),
     )
     return jsonify({"job_id": job_id, "status": "running"}), 202
 
@@ -280,7 +223,6 @@ def run_github_recovery():
     from_date = payload.get("from_date")
     to_date = payload.get("to_date")
     github_events = payload.get("github_events") or ["commits", "issues", "pull_requests"]
-    github_token = (payload.get("github_token") or "").strip() or None
 
     try:
         org, repo = _parse_github_url(github_url)
@@ -289,11 +231,18 @@ def run_github_recovery():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    github_token = get_github_token(prj)
+
     job_id = create_job()
     _recovery_executor.submit(
-        _bg_github_recovery,
-        job_id, prj, org, repo,
-        since, until, github_events, quality_model, github_token,
+        _bg_recovery,
+        job_id,
+        partial(
+            _github_step,
+            prj=prj, org=org, repo=repo, since=since, until=until,
+            github_events=github_events, quality_model=quality_model,
+            github_token=github_token,
+        ),
     )
     return jsonify({"job_id": job_id, "status": "running"}), 202
 
@@ -314,17 +263,22 @@ def run_taiga_recovery():
     from_date = payload.get("from_date")
     to_date = payload.get("to_date")
     taiga_events = payload.get("taiga_events") or ["task", "userstory", "issue", "epic"]
-    taiga_token = (payload.get("taiga_token") or "").strip() or None
 
     try:
         slug = _parse_taiga_slug(taiga_url)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    get_taiga_context(prj)
+
     job_id = create_job()
     _recovery_executor.submit(
-        _bg_taiga_recovery,
-        job_id, prj, slug, taiga_events, quality_model,
-        from_date, to_date, taiga_token,
+        _bg_recovery,
+        job_id,
+        partial(
+            _taiga_step,
+            prj=prj, slug=slug, taiga_events=taiga_events,
+            quality_model=quality_model, from_date=from_date, to_date=to_date,
+        ),
     )
     return jsonify({"job_id": job_id, "status": "running"}), 202

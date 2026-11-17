@@ -3,7 +3,7 @@ import logging
 from typing import Dict
 import requests
 from requests.adapters import HTTPAdapter
-from config.credentials_loader import resolve
+from config.credentials_loader import get_github_token
 from config.settings import GITHUB_API_URL
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def fetch_commit_stats(
     Gets 'additions', 'deletions' y 'total' of a commit using GitHub's REST API v3.
     """
 
-    token = resolve(prj, "github_token")
+    token = get_github_token(prj)
 
     headers = {
         "Accept": "application/vnd.github.v3+json",

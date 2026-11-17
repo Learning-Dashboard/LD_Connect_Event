@@ -10,12 +10,11 @@ from database.mongo_client import get_collection
 from routes.API_publisher.API_event_publisher import notify_eval_push
 from config.logger_config import setup_logging
 
-from config.settings import TAIGA_API_URL, TAIGA_TOKEN, TAIGA_USERNAME, TAIGA_PASSWORD
-from utils.taiga_token.taiga_auth import get_taiga_token
+from config.credentials_loader import TaigaContext, get_taiga_context
+from utils.taiga_token.taiga_auth import auth_headers
 
 from utils.pattern_detector import PatternDetector
 from datasources.requests.taiga_api_call import milestone_details, milestone_stats, userstory_details, task_details
-from datasources.requests.taiga_api_call import push_taiga_token_override, pop_taiga_token_override, _auth_header
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -49,27 +48,15 @@ def parse_dt(s: str) -> datetime:
 
 
 # Functions to interact with Taiga API
-def get_username_id(token: str) -> int:
-    """
-    Given a Taiga API token, return the user ID of the authenticated user.
-    With this ID we canfind the projects that the user is a member of.
-    """
-    h = _auth_header(token)
-    r = requests.get(f"{TAIGA_API_URL}/users/me", headers=h, timeout=10)
-    r.raise_for_status()
-    return r.json()["id"]
-
-
-def get_project_id_by_slug(slug: str, token: Optional[str] = None) -> int:
-    """Resolve Taiga project ID from slug without authentication (public projects)."""
-    url = f"{TAIGA_API_URL}/projects/by_slug"
-    headers = _auth_header(token) if token else {}
-    r = requests.get(url, params={"slug": slug}, headers=headers, timeout=10)
+def get_project_id_by_slug(slug: str, ctx: TaigaContext) -> int:
+    """Resolve Taiga project ID from slug on the subject's Taiga server."""
+    url = f"{ctx.api_url}/projects/by_slug"
+    r = requests.get(url, params={"slug": slug}, headers=auth_headers(ctx), timeout=10)
     if r.status_code == 200:
         return r.json()["id"]
     if r.status_code in (401, 403):
         raise SystemExit(
-            f"Project ‘{slug}’ is private. Provide credentials or make it public."
+            f"Project ‘{slug}’ is not accessible with the subject's Taiga credentials."
         )
     if r.status_code == 404:
         raise SystemExit(f"Project slug ‘{slug}’ not found.")
@@ -77,35 +64,15 @@ def get_project_id_by_slug(slug: str, token: Optional[str] = None) -> int:
     assert False  # pragma: no cover
 
 
-def get_project_id_by_username_id(project_name: str, token: str) -> int:
-    """
-    Given a project name and a Taiga API token, return the project ID.
-    With the projecta ID we can fetch the entities (tasks, issues, etc.) of the project.
-    """
-    h = _auth_header(token)
-    uid = get_username_id(token)
-    r = requests.get(
-        f"{TAIGA_API_URL}/projects",
-        headers=h,
-        params={"member": uid},
-        timeout=10,
-    )
-    r.raise_for_status()
-    for p in r.json():
-        if p["name"].lower() == project_name.lower():
-            return p["id"]
-    raise SystemExit(f"Project named «{project_name}» is not under the introduced user")
-
-
 def fetch_entities(
     entity: str,
     project: int,
+    ctx: TaigaContext,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
-    token: Optional[str] = None,
 ) -> List[Dict]:
     """
-    Given an entity type (tasks, issues, epics, userstories), a project ID, and a token, the function fetches the entities from the Taiga API.
+    Given an entity type (tasks, issues, epics, userstories), a project ID, and the subject's Taiga context, the function fetches the entities from the Taiga API.
     The start and end parameters are optional and can be used to filter the entities by creation date.
 
     """
@@ -115,9 +82,8 @@ def fetch_entities(
     endpoint_path = ENTITY_ENDPOINT[entity][0]
     headers = {
         "x-disable-pagination": "True",
+        **auth_headers(ctx),
     }
-    if token:
-        headers.update(_auth_header(token))
     params = {"project": project}
     if start:
         params["modified_date__gte"] = (
@@ -135,7 +101,7 @@ def fetch_entities(
         )  # See if there is a end date to fetch data, if there is add it to the params
 
     r = requests.get(
-        f"{TAIGA_API_URL}/{endpoint_path}",
+        f"{ctx.api_url}/{endpoint_path}",
         headers=headers,
         params=params,
         timeout=30,
@@ -330,10 +296,10 @@ def sync_deleted_entities(
     event: str,
     prj: str,
     project_id: int,
+    ctx: TaigaContext,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     raw_api: Optional[List[Dict]] = None,
-    token: Optional[str] = None,
 ) -> int:
     '''
     Removes from MongoDB documents that no longer exist in the Taiga API.
@@ -348,7 +314,7 @@ def sync_deleted_entities(
     
     # Reuse pre-fetched entities when available to avoid duplicate API calls.
     if raw_api is None:
-        raw_api = fetch_entities(event, project_id, start, end, token=token)
+        raw_api = fetch_entities(event, project_id, ctx, start, end)
     api_ids = set(r["id"] for r in raw_api)
     
     # Get the MongoDB collection
@@ -422,56 +388,40 @@ def main(argv: list[str] | None = None):
         default="default",
         help="Sets the quality model to use for the evaluation, by default: default",
     )
-    ap.add_argument(
-        "--taiga-token",
-        default="",
-        help="Optional Taiga token override for private projects and API access",
-    )
 
     ns = ap.parse_args(argv)
     events = [e.strip().lower() for e in ns.events.split(",") if e.strip()]
     start = parse_dt(ns.from_date) if ns.from_date else None
     end = parse_dt(ns.to_date) if ns.to_date else None
-    effective_taiga_token = ns.taiga_token or TAIGA_TOKEN or None
-    if not effective_taiga_token and TAIGA_USERNAME and TAIGA_PASSWORD:
-        try:
-            effective_taiga_token = get_taiga_token(TAIGA_USERNAME, TAIGA_PASSWORD)
-        except Exception as exc:
-            logger.warning("Could not obtain Taiga token from global credentials: %s", exc)
+    # Taiga server and credentials of the subject this team belongs to (credentials config)
+    ctx = get_taiga_context(ns.prj)
 
-    pid = get_project_id_by_slug(
-        ns.slug,
-        token=effective_taiga_token,
-    )  # Get the project ID using the project name and the token info
+    pid = get_project_id_by_slug(ns.slug, ctx)  # Get the project ID using the project slug
 
 
     total = 0
     total_deleted = 0
-    token_handle = push_taiga_token_override(effective_taiga_token)
-    try:
-        for event in events: # Iterate over the events to backfill
-            endpoint, converter, key = ENTITY_ENDPOINT[event]
-            raw = fetch_entities(event, pid, start, end, token=effective_taiga_token)   # Get the raw data from the Taiga API for the event
-            docs = [converter(r, ns.prj) for r in raw]        # Convert the raw data to the MongoDB schema using the converter function
-            # Usar el nombre plural correcto para la colección de userstories
-            collection_name = f"taiga_{ns.prj}.userstories" if event == "userstory" else f"taiga_{ns.prj}.tasks" if event == "task" else f"taiga_{ns.prj}.epics" if event == "epic" else f"taiga_{ns.prj}.{event}"
-            coll = get_collection(collection_name)  # Get the MongoDB collection for the event
-            n = upsert(coll, docs, key)                        # Upsert the documents
-            total += n
-            print(f" • {event:<12} → {n:>4} documents")          # Print total number of documments
+    for event in events: # Iterate over the events to backfill
+        endpoint, converter, key = ENTITY_ENDPOINT[event]
+        raw = fetch_entities(event, pid, ctx, start, end)   # Get the raw data from the Taiga API for the event
+        docs = [converter(r, ns.prj) for r in raw]        # Convert the raw data to the MongoDB schema using the converter function
+        # Usar el nombre plural correcto para la colección de userstories
+        collection_name = f"taiga_{ns.prj}.userstories" if event == "userstory" else f"taiga_{ns.prj}.tasks" if event == "task" else f"taiga_{ns.prj}.epics" if event == "epic" else f"taiga_{ns.prj}.{event}"
+        coll = get_collection(collection_name)  # Get the MongoDB collection for the event
+        n = upsert(coll, docs, key)                        # Upsert the documents
+        total += n
+        print(f" • {event:<12} → {n:>4} documents")          # Print total number of documments
 
-            # Sync deletions: remove entities that no longer exist in the Taiga API
-            deleted_count = sync_deleted_entities(event, ns.prj, pid, start, end, raw_api=raw, token=effective_taiga_token)
-            total_deleted += deleted_count
+        # Sync deletions: remove entities that no longer exist in the Taiga API
+        deleted_count = sync_deleted_entities(event, ns.prj, pid, ctx, start, end, raw_api=raw)
+        total_deleted += deleted_count
 
-            #COMMUNICATION WITH LD_EVAL USING API
-            logger.info(f"Notifying LD_EVAL about event: {event} for team with external_id: {ns.prj} with quality_model: {ns.quality_model}")
-            try:
-                notify_eval_push(event, ns.prj, "backfill", ns.quality_model)
-            except Exception as e:
-                logger.error(f"Error notifying LD_EVAL: {e}")
-    finally:
-        pop_taiga_token_override(token_handle)
+        #COMMUNICATION WITH LD_EVAL USING API
+        logger.info(f"Notifying LD_EVAL about event: {event} for team with external_id: {ns.prj} with quality_model: {ns.quality_model}")
+        try:
+            notify_eval_push(event, ns.prj, "backfill", ns.quality_model)
+        except Exception as e:
+            logger.error(f"Error notifying LD_EVAL: {e}")
 
     span = "all time" if not (start or end) else \
            f"from {ns.from_date or '…'} to {ns.to_date or '…'}"

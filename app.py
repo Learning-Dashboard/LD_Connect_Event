@@ -6,6 +6,7 @@ from routes.recovery_routes import recovery_bp
 from config.credentials_loader import (
     CredentialsConfigError,
     ProjectCredentialsNotFoundError,
+    validate_config,
     validate_config_file,
 )
 from config.logger_config import setup_logging
@@ -47,10 +48,14 @@ def _register_error_handlers(app: Flask) -> None:
 def _log_credentials_config_status() -> None:
     try:
         config_path = validate_config_file()
+        problems = validate_config()
     except CredentialsConfigError as exc:
         logger.warning("%s", exc)
-    else:
-        logger.info("Using credentials config at %s", config_path)
+        return
+
+    logger.info("Using credentials config at %s", config_path)
+    for problem in problems:
+        logger.warning("Credentials config problem: %s", problem)
 
 
 def create_app():

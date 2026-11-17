@@ -17,6 +17,7 @@ Whenever a student pushes to **GitHub**, edits a task on **Taiga**, or logs effo
 | HMAC‑secured webhooks | Validates signatures from GitHub & Taiga | `routes/*_routes.py` |
 | Source‑aware parsing | Converts raw payloads into domain‑specific documents | `datasources/*_handler.py` |
 | Idempotent upserts | Natural IDs avoid duplicates on re‑delivery | `database/` |
+| Per‑subject credentials | Each subject has its own GitHub token and Taiga server | `config/credentials_loader.py` |
 | Asynchronous metric trigger | Posts a lightweight envelope to LD Eval | `routes/API_publisher/API_event_publisher.py` |
 | Docker‑first deployment | Ready‑to‑run `Dockerfile` + Compose snippet | `docker-compose.yml` |
 
@@ -47,7 +48,7 @@ Whenever a student pushes to **GitHub**, edits a task on **Taiga**, or logs effo
 ```text
 ldconnect/
 ├─ config/           # secrets, logging, settings
-├─ config_files/     # teacher‑editable JSON (HMAC keys…)
+├─ config_files/     # teacher‑editable JSON (per‑subject credentials)
 ├─ database/         # pooled Mongo client
 ├─ datasources/      # GitHub / Taiga / Excel handlers
 ├─ routes/           # Blueprint per source + HMAC helpers
@@ -71,8 +72,8 @@ pip install -r requirements.txt
 # copy sample env and edit credentials / secrets
 cp template.env .env
 
-# create the directory that will contain your per-project API credentials
-mkdir -p config_files
+# create your per-subject credentials (GitHub token, Taiga server, teams)
+cp config_files/credentials_config.example.json config_files/credentials_config.json
 
 # run development server (single worker)
 python app.py
@@ -101,21 +102,112 @@ docker compose up -d --build ld_connect
 Before building or starting the service, make sure
 `config_files/credentials_config.json` exists. It is used during local image builds
 and can also be provided at runtime through the `./config_files` mount.
+See [Per-subject credentials](#per-subject-credentials) for its content.
 
 ---
 
 ## Environment variables
 
-| Variable | Description |
-| --- | --- |
-| `MONGO_URI` | MongoDB connection string |
-| `GITHUB_SECRET` | HMAC key for GitHub signatures |
-| `TAIGA_SECRET` | HMAC key for Taiga signatures |
-| `EVAL_HOST` | Hostname of LD Eval (default `ld_eval`) |
-| `EVAL_PORT` | LD Eval port (default `5001`) |
-| `LOG_LEVEL` | `INFO` (default) or `DEBUG` |
+| Variable | Required | Description |
+| --- | --- | --- |
+| `MONGO_HOST`, `MONGO_PORT`, `MONGO_DB` | no | MongoDB location (defaults `mongodb`, `27017`, `mongo`) |
+| `MONGO_USER`, `MONGO_PASS`, `MONGO_AUTHSRC` | no | MongoDB credentials, when authentication is enabled |
+| `CREDENTIALS_FILE` | no | Path of the per-subject credentials file (default `config_files/credentials_config.json`) |
+| `GITHUB_SIGNATURE_KEY` | yes | HMAC key for GitHub signatures |
+| `GITHUB_API_URL` | no | GitHub API URL (default `https://api.github.com`) |
+| `TAIGA_SIGNATURE_KEY` | yes | HMAC key for Taiga signatures |
+| `TAIGA_FALLBACK_API_URL` | see below | API URL of the fallback Taiga, e.g. `https://api.taiga.io/api/v1` |
+| `TAIGA_FALLBACK_AUTH_URL` | see below | Login endpoint of the fallback Taiga, e.g. `https://api.taiga.io/api/v1/auth` |
+| `TAIGA_FALLBACK_USERNAME` | see below | User of the fallback Taiga |
+| `TAIGA_FALLBACK_PASSWORD` | see below | Password of the fallback Taiga |
+| `WEBHOOK_URL_GITHUB`, `WEBHOOK_URL_TAIGA` | no | Public webhook URLs, used by the webhook deletion script |
+| `EVAL_HOST` | no | Hostname of LD Eval (default `ld_eval`) |
+| `EVAL_PORT` | no | LD Eval port (default `5001`) |
+| `LOG_LEVEL` | no | `INFO` (default) or `DEBUG` |
 
-Store them in `.env` (already referenced in `docker-compose.yml`).
+Store them in `.env` (already referenced in `docker-compose.yml`); `template.env` is the starting point.
+
+The `TAIGA_FALLBACK_*` variables are needed as soon as one subject does not have a
+Taiga server of its own; see [Per-subject credentials](#per-subject-credentials).
+
+There is no global GitHub token and no global Taiga server any more. `GITHUB_TOKEN`,
+`TAIGA_API_URL`, `TAIGA_AUTH_URL`, `TAIGA_USERNAME`, `TAIGA_PASSWORD` and `TAIGA_TOKEN`
+are ignored if they are still present in `.env`.
+
+---
+
+## Per-subject credentials
+
+Each subject (course) can use a different Taiga server and a different GitHub token.
+They are configured in `config_files/credentials_config.json`, one entry per subject.
+The file is git-ignored; copy `config_files/credentials_config.example.json` to start.
+
+```json
+{
+  "subject_with_university_taiga": {
+    "github_token": "ghp_replace_me",
+    "taiga_api_url": "https://taiga.university.example/api/v1",
+    "taiga_auth_url": "https://taiga.university.example/api/v1/auth",
+    "taiga_token": "replace_me_with_the_application_token",
+    "teams": ["TeamAlpha", "TeamBeta"]
+  },
+  "subject_on_fallback_taiga": {
+    "github_token": "ghp_replace_me",
+    "taiga_api_url": "",
+    "taiga_auth_url": "",
+    "taiga_token": "",
+    "teams": ["TeamGamma"]
+  }
+}
+```
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `github_token` | yes | GitHub token used for every team of the subject |
+| `taiga_api_url` | no | API URL of the subject's Taiga server (`.../api/v1`). Empty: fallback Taiga |
+| `taiga_auth_url` | no | Login endpoint of the subject's Taiga server (`.../api/v1/auth`). Empty: fallback Taiga |
+| `taiga_token` | no | Static Taiga token (application token or bearer token) |
+| `taiga_user`, `taiga_password` | no | Taiga user and password, used to log in when there is no `taiga_token` |
+| `teams` | yes | Identifiers of the teams of the subject: the `prj` value of their webhooks |
+
+### How the credentials of a team are resolved
+
+Every webhook event, recovery run and webhook deletion starts from the team (`prj`):
+
+1. **Subject**: the entry whose `teams` list contains the team. A team that is in no
+   list has no credentials. A team must be listed under one subject only.
+2. **GitHub token**: the `github_token` of that subject. There is no fallback.
+3. **Taiga server**:
+   - `taiga_api_url` and `taiga_auth_url` both set: the subject's own server.
+   - both empty: the fallback server, `TAIGA_FALLBACK_API_URL` and `TAIGA_FALLBACK_AUTH_URL`.
+   - only one of them set: configuration error.
+4. **Taiga credentials**, first match:
+   1. `taiga_token`: sent as `Application <token>` when it contains `:` (Taiga
+      application tokens), otherwise as `Bearer <token>`.
+   2. `taiga_user` and `taiga_password`: login at the auth URL resolved in step 3.
+   3. Only on the fallback server: `TAIGA_FALLBACK_USERNAME` and `TAIGA_FALLBACK_PASSWORD`.
+   4. Otherwise: configuration error. A subject with its own server never uses the
+      fallback user.
+
+What happens when the resolution fails:
+
+| Situation | Webhooks | Recovery endpoints |
+| --- | --- | --- |
+| Team in no `teams` list | GitHub push: `400 Unknown project credentials`. Taiga: the event is stored without the data fetched from the Taiga API | `400`, no job is created |
+| Subject entry incomplete | GitHub push: `500 Credentials configuration error`. Taiga: as above | `500`, no job is created |
+
+GitHub issue and pull request events do not call the GitHub API, so they are stored
+in both situations. The webhook deletion script skips the teams it cannot resolve
+and logs them.
+
+Notes:
+
+* The file is re-read when it changes on disk; adding a team or rotating a token does
+  not need a restart.
+* On start-up, every problem found in the file is written to the log as
+  `Credentials config problem: ...`.
+* The Admin Tool backend reads the same file to validate projects on import, so both
+  services must see the same content.
 
 ---
 
@@ -194,20 +286,9 @@ Configured hooks:
 
 ### What's the origin and purpouse of credentials_config.json?
 
-Basically, when LD Connect receives an event from GitHub or Taiga, it often needs to fetch additional details about the event (e.g., commit info, issue details) by calling the respective APIs. To authenticate these API calls, LD Connect uses tokens that are specific to each project or team. The `credentials_config.json` file serves as a mapping between project identifiers (like "TeamA") and their corresponding API tokens. This way, when an event comes in with a `prj` parameter, LD Connect can look up the correct token to use for any API requests related to that event.
+Basically, when LD Connect receives an event from GitHub or Taiga, it often needs to fetch additional details about the event (e.g., commit info, milestone statistics) by calling the respective APIs. Each subject can use a different GitHub token and a different Taiga server, so these API calls cannot be authenticated with one global credential. The `credentials_config.json` file maps each subject to its GitHub token, its Taiga server and credentials, and its teams. When an event comes in with a `prj` parameter, LD Connect looks up the subject of that team and uses its credentials for any API request related to that event. The recovery tool and the webhook deletion script use the same lookup.
 
-Minimal example:
-
-```json
-{
-  "course_a": {
-    "github_token": "ghp_replace_me",
-    "taiga_user": "replace-me",
-    "taiga_password": "replace-me",
-    "teams": ["TeamAlpha", "TeamBeta"]
-  }
-}
-```
+The schema and the resolution rule are described in [Per-subject credentials](#per-subject-credentials).
 
 ## Can i use LD Connect alone, without LD-infrastructure?
 

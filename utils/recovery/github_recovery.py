@@ -10,7 +10,8 @@ from database.mongo_client import get_collection
 from datasources.github_handler import parse_github_event
 from config.logger_config import setup_logging
 from routes.API_publisher.API_event_publisher import notify_eval_push
-from config.settings import GITHUB_TOKEN, GITHUB_API_URL
+from config.credentials_loader import get_github_token
+from config.settings import GITHUB_API_URL
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -26,6 +27,16 @@ def parse_dt(s: str | None) -> Optional[datetime]:
     if d.tzinfo is None:
         d = d.replace(tzinfo=tz.gettz("Europe/Madrid"))
     return d
+
+
+def github_headers(github_token: str) -> dict[str, str]:
+    """
+    Returns the headers to call the GitHub API with the token of the team's subject.
+    """
+    return {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {github_token}",
+    }
 
 
 def get_organization_repos(org: str, headers: Dict[str, str]) -> List[str]:
@@ -70,7 +81,7 @@ def collect_github(
     since: Optional[str],
     until: Optional[str],
     quality_model: str,
-    github_token: Optional[str] = None,
+    github_token: str,
 ):
     """
     Collects data from a GitHub repository and inserts it into MongoDB. Follows the schema of the LD-Connect project.
@@ -78,12 +89,7 @@ def collect_github(
     repo_full = (
         f"{org}/{repo}"  # Full name of the repository, e.g. "LD-Connect/ld-connect"
     )
-    headers = {"Accept": "application/vnd.github+json"}
-    effective_token = github_token if github_token is not None else GITHUB_TOKEN
-    if effective_token:
-        headers["Authorization"] = (
-            f"Bearer {effective_token}"  # Authentication with GitHub API using a token
-        )
+    headers = github_headers(github_token)  # Authentication with GitHub API using a token
 
     counters = {"commits": 0, "issues": 0, "pull_requests": 0} #Counter to display the number of documents inserted of each event type
     author_login = "backfill" # The author login is always "backfill" for backfilling
@@ -287,11 +293,9 @@ if __name__ == "__main__":
         else None
     )
 
-    headers = {"Accept": "application/vnd.github+json"}
-    if GITHUB_TOKEN:
-        headers["Authorization"] = (
-            f"Bearer {GITHUB_TOKEN}"  # Authentication with GitHub API using a token
-        )
+    # GitHub token of the subject this team belongs to (credentials config)
+    github_token = get_github_token(ns.prj)
+    headers = github_headers(github_token)
 
     if ns.repo:
         repos = [ns.repo]
@@ -310,6 +314,7 @@ if __name__ == "__main__":
             since=since,
             until=until,
             quality_model=ns.quality_model,
+            github_token=github_token,
         )
 
 

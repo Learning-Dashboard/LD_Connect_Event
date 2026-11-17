@@ -52,6 +52,16 @@ class TestGetOrganizationRepos:
         assert repos == ["repo1", "repo2"]
 
 
+class TestGithubHeaders:
+    def test_bearer_token(self):
+        from utils.recovery.github_recovery import github_headers
+
+        assert github_headers("ghp_TOKEN") == {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer ghp_TOKEN",
+        }
+
+
 class TestGhPaginated:
     @patch("utils.recovery.github_recovery.requests.get")
     def test_single_page(self, mock_get):
@@ -153,10 +163,14 @@ class TestCollectGithub:
         mock_collection.bulk_write.return_value = mock_result
         mock_coll.return_value = mock_collection
 
-        collect_github("Org", "repo", "TestPrj", ["commits"], None, None, "default")
+        collect_github(
+            "Org", "repo", "TestPrj", ["commits"], None, None, "default", "ghp_TOKEN"
+        )
 
         mock_coll.assert_called_with("github_TestPrj.commits")
         mock_notify.assert_called_once()
+        # The GitHub API is called with the token received (the one of the subject)
+        assert mock_pag.call_args.args[1]["Authorization"] == "Bearer ghp_TOKEN"
 
     @patch("utils.recovery.github_recovery.notify_eval_push")
     @patch("utils.recovery.github_recovery.get_collection")
@@ -184,7 +198,9 @@ class TestCollectGithub:
         mock_collection.bulk_write.return_value = mock_result
         mock_coll.return_value = mock_collection
 
-        collect_github("Org", "repo", "TestPrj", ["issues"], None, None, "default")
+        collect_github(
+            "Org", "repo", "TestPrj", ["issues"], None, None, "default", "ghp_TOKEN"
+        )
         mock_coll.assert_called_with("github_TestPrj.issues")
 
     @patch("utils.recovery.github_recovery.notify_eval_push")
@@ -212,7 +228,7 @@ class TestCollectGithub:
         mock_coll.return_value = mock_collection
 
         collect_github(
-            "Org", "repo", "TestPrj", ["pull_requests"], None, None, "default"
+            "Org", "repo", "TestPrj", ["pull_requests"], None, None, "default", "ghp_TOKEN"
         )
         mock_coll.assert_called_with("github_TestPrj.pull_requests")
 
@@ -223,4 +239,4 @@ class TestCollectGithub:
         from utils.recovery.github_recovery import collect_github
 
         # Should not crash on unsupported event
-        collect_github("Org", "repo", "P", ["unsupported"], None, None, "default")
+        collect_github("Org", "repo", "P", ["unsupported"], None, None, "default", "ghp_TOKEN")

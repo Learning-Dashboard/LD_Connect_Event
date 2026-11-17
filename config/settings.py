@@ -36,17 +36,20 @@ if MONGO_USER and MONGO_PASS:
 else:
     MONGO_URI = f"mongodb://{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}"
 
-# Load the GitHub token from the environment
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+# GitHub tokens and Taiga servers are configured per subject in the credentials
+# config file (see config/credentials_loader.py), not here.
 GITHUB_SIGNATURE_KEY = _require_env("GITHUB_SIGNATURE_KEY")
 GITHUB_API_URL = os.getenv("GITHUB_API_URL", "https://api.github.com")
 
-TAIGA_API_URL = _require_env("TAIGA_API_URL")
-TAIGA_AUTH_URL = os.getenv("TAIGA_AUTH_URL", TAIGA_API_URL)
-TAIGA_TOKEN = os.getenv("TAIGA_TOKEN", "")
 TAIGA_SIGNATURE_KEY = _require_env("TAIGA_SIGNATURE_KEY")
-TAIGA_USERNAME = _require_env("TAIGA_USERNAME")
-TAIGA_PASSWORD = _require_env("TAIGA_PASSWORD")
+
+# Taiga used by subjects whose taiga_api_url / taiga_auth_url are empty in the
+# credentials config. Only required when at least one subject falls back.
+# TAIGA_FALLBACK_AUTH_URL is the full login endpoint (…/api/v1/auth).
+TAIGA_FALLBACK_API_URL = os.getenv("TAIGA_FALLBACK_API_URL", "")
+TAIGA_FALLBACK_AUTH_URL = os.getenv("TAIGA_FALLBACK_AUTH_URL", "")
+TAIGA_FALLBACK_USERNAME = os.getenv("TAIGA_FALLBACK_USERNAME", "")
+TAIGA_FALLBACK_PASSWORD = os.getenv("TAIGA_FALLBACK_PASSWORD", "")
 
 
 # Load the webhook URLs from the environment to enable the deletion of webhooks
